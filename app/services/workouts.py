@@ -44,6 +44,7 @@ class WorkoutService:
                     reps=item.reps,
                     weight_kg=item.weight_kg,
                     rpe=item.rpe,
+                    is_drop_set=item.is_drop_set,
                 )
                 for index, item in enumerate(entry_data.sets, start=1)
             ]

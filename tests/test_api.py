@@ -25,8 +25,8 @@ async def test_complete_workout_flow(authenticated_client):
                 {
                     "machine_id": machine_id,
                     "sets": [
-                        {"weight_kg": 50, "reps": 10, "rpe": 7.5},
-                        {"weight_kg": 55, "reps": 8, "rpe": 8},
+                        {"weight_kg": 27.5, "reps": 10, "rpe": 7.5},
+                        {"weight_kg": 22.5, "reps": 8, "rpe": 8, "is_drop_set": True},
                     ],
                 }
             ],
@@ -35,7 +35,9 @@ async def test_complete_workout_flow(authenticated_client):
     assert workout_response.status_code == 201
     workout = workout_response.json()
     assert workout["total_sets"] == 2
-    assert float(workout["total_volume_kg"]) == 940
+    assert workout["drop_sets"] == 1
+    assert workout["entries"][0]["sets"][1]["is_drop_set"] is True
+    assert float(workout["total_volume_kg"]) == 455
 
     stats_response = await authenticated_client.get("/api/stats/overview")
     assert stats_response.status_code == 200
@@ -43,8 +45,24 @@ async def test_complete_workout_flow(authenticated_client):
     assert stats["total_workouts"] == 1
     assert stats["total_sets"] == 2
     assert stats["total_reps"] == 18
-    assert float(stats["total_volume_kg"]) == 940
-    assert float(stats["personal_records"][0]["max_weight_kg"]) == 55
+    assert float(stats["total_volume_kg"]) == 455
+    assert float(stats["personal_records"][0]["max_weight_kg"]) == 27.5
+
+
+async def test_specific_arm_muscle_groups_replace_combined_groups(authenticated_client):
+    for group in ("Biceps", "Triceps", "Forearms"):
+        response = await authenticated_client.post(
+            "/api/machines",
+            json={"name": f"{group} exercise", "muscle_group": group},
+        )
+        assert response.status_code == 201
+
+    for removed_group in ("Arms", "Full Body"):
+        response = await authenticated_client.post(
+            "/api/machines",
+            json={"name": f"Old {removed_group}", "muscle_group": removed_group},
+        )
+        assert response.status_code == 422
 
 
 async def test_machine_names_are_unique_per_user(authenticated_client):

@@ -11,6 +11,7 @@ class WorkoutSetWrite(BaseModel):
     reps: int = Field(ge=1, le=1000)
     weight_kg: Decimal = Field(ge=0, le=100000, decimal_places=2)
     rpe: Decimal | None = Field(default=None, ge=1, le=10, decimal_places=1)
+    is_drop_set: bool = False
 
 
 class WorkoutEntryWrite(BaseModel):
@@ -51,12 +52,14 @@ class WorkoutSetRead(BaseModel):
     reps: int
     weight_kg: Decimal
     rpe: Decimal | None
+    is_drop_set: bool
 
 
 class WorkoutEntryRead(BaseModel):
     id: uuid.UUID
     machine_id: uuid.UUID
     machine_name: str
+    muscle_group: str
     position: int
     notes: str | None
     sets: list[WorkoutSetRead]
@@ -72,6 +75,7 @@ class WorkoutRead(BaseModel):
     updated_at: datetime
     entries: list[WorkoutEntryRead]
     total_sets: int
+    drop_sets: int
     total_volume_kg: Decimal
 
     @classmethod
@@ -81,6 +85,7 @@ class WorkoutRead(BaseModel):
                 id=entry.id,
                 machine_id=entry.machine_id,
                 machine_name=entry.machine.name,
+                muscle_group=entry.machine.muscle_group,
                 position=entry.position,
                 notes=entry.notes,
                 sets=[
@@ -90,6 +95,7 @@ class WorkoutRead(BaseModel):
                         reps=item.reps,
                         weight_kg=item.weight_kg,
                         rpe=item.rpe,
+                        is_drop_set=item.is_drop_set,
                     )
                     for item in entry.sets
                 ],
@@ -108,6 +114,7 @@ class WorkoutRead(BaseModel):
             updated_at=workout.updated_at,
             entries=entries,
             total_sets=len(all_sets),
+            drop_sets=sum(item.is_drop_set for item in all_sets),
             total_volume_kg=volume,
         )
 

@@ -3,20 +3,27 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.domain.muscles import MUSCLE_GROUP_VALUES
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.workout import WorkoutEntry
 
+MUSCLE_GROUP_SQL_VALUES = ", ".join(f"'{value}'" for value in MUSCLE_GROUP_VALUES)
+
 
 class Machine(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "machines"
     __table_args__ = (
         UniqueConstraint("user_id", "name", name="uq_machines_user_name"),
+        CheckConstraint(
+            f"muscle_group IN ({MUSCLE_GROUP_SQL_VALUES})",
+            name="muscle_group_allowed",
+        ),
         Index("ix_machines_user_active", "user_id", "active"),
     )
 

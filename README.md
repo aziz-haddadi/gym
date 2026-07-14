@@ -1,8 +1,9 @@
 # FORGE — Gym Pulgaa
 
 A private, self-hosted workout tracker for `gym.pulgaa.xyz`. It records machines,
-workout days, sets, reps, weight, RPE, notes, volume, personal records, and daily
-streaks.
+workout days, regular and drop sets, fractional weights, reps, RPE, notes, volume,
+personal records, and daily streaks. Saved workouts can be repeated as new sessions
+without entering the full day again.
 
 ## Architecture
 
@@ -31,8 +32,9 @@ There are two Docker networks:
 
 Caddy performs the browser password challenge and injects the authenticated username
 over the localhost-only upstream. The app maps that name to the `pulgaa` account, so
-there is no second login screen in production. Session authentication remains
-available for local development by setting `GYM_TRUST_PROXY_AUTH=false`.
+there is no second login screen in the browser interface. Backend session
+authentication remains available for automated tests and API development by setting
+`GYM_TRUST_PROXY_AUTH=false`.
 
 ## Request and data workflow
 
@@ -46,8 +48,9 @@ available for local development by setting `GYM_TRUST_PROXY_AUTH=false`.
    statistics. There are no third-party browser APIs or CDN dependencies.
 6. API routes validate transport data, services enforce ownership and business rules,
    repositories isolate persistence queries, and SQLAlchemy writes to PostgreSQL.
-7. A workout is stored as one workout row, ordered machine entries, and their sets.
-   The write is transactional: a failed validation does not leave a partial workout.
+7. A workout is stored as one workout row, ordered muscle-filtered machine entries,
+   and their regular or drop sets. The write is transactional: failed validation does
+   not leave a partial workout.
 8. Statistics aggregate the saved workout graph into volume, total sets/reps, weekly
    trends, machine personal records, and current/longest calendar-day streaks.
 9. PostgreSQL accepts connections only from the internal Docker network. Its files
@@ -57,6 +60,10 @@ available for local development by setting `GYM_TRUST_PROXY_AUTH=false`.
 Container startup is ordered: PostgreSQL must pass `pg_isready`, the one-shot Alembic
 migration service must exit successfully, and only then does the web application
 start. Rebuilding the application does not recreate or delete the named data volume.
+
+Workout cards include a repeat action. It opens the saved session with today's date
+and copies its machines, fractional weights, reps, RPE values, notes, duration, and
+drop-set markers. Saving creates a new workout; the original remains unchanged.
 
 ## VPS deployment
 
@@ -192,6 +199,10 @@ docker compose down
 
 Never run `docker compose down -v` unless you intentionally want to delete the live
 database volume and have verified backups.
+
+Normal upgrades automatically run pending Alembic migrations before the application
+starts. They preserve the named PostgreSQL volume; do not delete the volume to deploy
+new features.
 
 ## Local development and tests
 

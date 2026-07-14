@@ -1,20 +1,9 @@
 import uuid
 from datetime import datetime
-from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
-class MuscleGroup(StrEnum):
-    CHEST = "Chest"
-    BACK = "Back"
-    SHOULDERS = "Shoulders"
-    ARMS = "Arms"
-    LEGS = "Legs"
-    CORE = "Core"
-    CARDIO = "Cardio"
-    FULL_BODY = "Full Body"
-    OTHER = "Other"
+from app.domain.muscles import MuscleGroup
 
 
 class MachineCreate(BaseModel):

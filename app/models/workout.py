@@ -5,7 +5,17 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Date, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -77,5 +87,6 @@ class WorkoutSet(UUIDPrimaryKeyMixin, Base):
     reps: Mapped[int] = mapped_column(Integer, nullable=False)
     weight_kg: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
     rpe: Mapped[Decimal | None] = mapped_column(Numeric(3, 1), nullable=True)
+    is_drop_set: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     entry: Mapped[WorkoutEntry] = relationship(back_populates="sets")

@@ -9,6 +9,19 @@ const state = {
   activeView: "dashboard",
 };
 
+const MUSCLE_GROUPS = Object.freeze([
+  "Chest",
+  "Back",
+  "Shoulders",
+  "Biceps",
+  "Triceps",
+  "Forearms",
+  "Legs",
+  "Core",
+  "Cardio",
+  "Other",
+]);
+
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -41,11 +54,10 @@ async function initialize() {
     await loadApplication();
     showApplication();
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) showLogin();
-    else {
-      showLogin();
-      $("#login-error").textContent = "The application is unavailable. Try again shortly.";
-    }
+    const message = error instanceof ApiError && error.status === 401
+      ? "Caddy did not provide an authorized user. Verify the proxy authentication header."
+      : "The application is unavailable. Check the service and try again shortly.";
+    showAccessError(message);
   }
 }
 
@@ -63,16 +75,15 @@ async function loadApplication(includeArchived = false) {
 
 function showApplication() {
   $("#loading-screen").classList.add("hidden");
-  $("#login-screen").classList.add("hidden");
   $("#app-shell").classList.remove("hidden");
   $("#user-name").textContent = state.user.username;
   $("#user-avatar").textContent = state.user.username.charAt(0).toUpperCase();
 }
 
-function showLogin() {
-  $("#loading-screen").classList.add("hidden");
-  $("#app-shell").classList.add("hidden");
-  $("#login-screen").classList.remove("hidden");
+function showAccessError(message) {
+  $("#loader-mark").classList.add("hidden");
+  $("#access-error-message").textContent = message;
+  $("#access-error").classList.remove("hidden");
 }
 
 function renderAll() {
@@ -140,10 +151,12 @@ function workoutCard(workout) {
     </div>
     <div class="workout-numbers">
       <div><strong>${workout.total_sets}</strong><span>sets</span></div>
+      ${workout.drop_sets ? `<div><strong>${workout.drop_sets}</strong><span>drop sets</span></div>` : ""}
       <div><strong>${compactNumber(workout.total_volume_kg, 1)}</strong><span>kg volume</span></div>
       ${workout.duration_minutes ? `<div><strong>${workout.duration_minutes}</strong><span>minutes</span></div>` : ""}
     </div>
     <div class="card-actions">
+      <button class="icon-button repeat-action" data-action="repeat-workout" data-id="${workout.id}" aria-label="Repeat ${escapeHtml(workout.title)}"><span aria-hidden="true">↻</span> Repeat</button>
       <button class="icon-button" data-action="edit-workout" data-id="${workout.id}" aria-label="Edit ${escapeHtml(workout.title)}">✎</button>
       <button class="icon-button danger" data-action="delete-workout" data-id="${workout.id}" aria-label="Delete ${escapeHtml(workout.title)}">×</button>
     </div>
@@ -208,30 +221,48 @@ function openMachineDialog(machine = null) {
   dialog.showModal();
 }
 
-function machineOptions(selectedId = "") {
-  return state.machines.filter((machine) => machine.active).map((machine) =>
-    `<option value="${machine.id}" ${machine.id === selectedId ? "selected" : ""}>${escapeHtml(machine.name)} · ${escapeHtml(machine.muscle_group)}</option>`
+function defaultMuscleGroup() {
+  return state.machines.find((machine) => machine.active)?.muscle_group || MUSCLE_GROUPS[0];
+}
+
+function muscleOptions(selectedGroup = "") {
+  return MUSCLE_GROUPS.map((group) =>
+    `<option value="${group}" ${group === selectedGroup ? "selected" : ""}>${group}</option>`
+  ).join("");
+}
+
+function machineOptions(muscleGroup, selectedId = "") {
+  const machines = state.machines.filter((machine) =>
+    machine.muscle_group === muscleGroup && (machine.active || machine.id === selectedId)
+  );
+  if (!machines.length) return '<option value="" disabled selected>No active machines for this muscle</option>';
+  return machines.map((machine) =>
+    `<option value="${machine.id}" ${machine.id === selectedId ? "selected" : ""}>${escapeHtml(machine.name)}${machine.active ? "" : " · archived"}</option>`
   ).join("");
 }
 
 function setRow(item = {}) {
   return `<div class="set-row">
     <span class="set-index"></span>
-    <label><span>kg</span><input class="set-weight" type="number" min="0" max="100000" step="0.25" value="${item.weight_kg ?? ""}" required inputmode="decimal"></label>
+    <label><span>kg</span><input class="set-weight" type="number" min="0" max="100000" step="0.01" value="${item.weight_kg ?? ""}" required inputmode="decimal"></label>
     <label><span>reps</span><input class="set-reps" type="number" min="1" max="1000" step="1" value="${item.reps ?? ""}" required inputmode="numeric"></label>
     <label><span>RPE</span><input class="set-rpe" type="number" min="1" max="10" step="0.5" value="${item.rpe ?? ""}" inputmode="decimal"></label>
+    <label class="drop-check"><input class="set-drop" type="checkbox" ${item.is_drop_set ? "checked" : ""}><span>Drop</span></label>
     <button class="remove-set" type="button" data-action="remove-set" aria-label="Remove set">×</button>
   </div>`;
 }
 
 function entryRow(entry = {}) {
   const sets = entry.sets?.length ? entry.sets : [{}];
+  const selectedMachine = state.machines.find((machine) => machine.id === entry.machine_id);
+  const selectedGroup = entry.muscle_group || selectedMachine?.muscle_group || defaultMuscleGroup();
   return `<article class="entry-card">
     <div class="entry-head">
-      <label>Machine<select class="entry-machine" required>${machineOptions(entry.machine_id)}</select></label>
+      <label>Muscle<select class="entry-muscle" required>${muscleOptions(selectedGroup)}</select></label>
+      <label>Machine<select class="entry-machine" required>${machineOptions(selectedGroup, entry.machine_id)}</select></label>
       <button class="text-button danger-text" type="button" data-action="remove-entry">Remove</button>
     </div>
-    <div class="sets-head"><span>Set</span><span>Weight</span><span>Reps</span><span>Effort</span><i></i></div>
+    <div class="sets-head"><span>Set</span><span>Weight</span><span>Reps</span><span>Effort</span><span>Drop</span><i></i></div>
     <div class="sets-list">${sets.map(setRow).join("")}</div>
     <div class="entry-foot">
       <button class="text-button" type="button" data-action="add-set">+ Add set</button>
@@ -248,7 +279,7 @@ function renumberSets(root = document) {
   });
 }
 
-function openWorkoutDialog(workout = null) {
+function openWorkoutDialog(workout = null, { repeat = false } = {}) {
   if (!state.machines.some((machine) => machine.active)) {
     showToast("Add your first machine before logging a workout", "notice");
     openMachineDialog();
@@ -256,9 +287,10 @@ function openWorkoutDialog(workout = null) {
   }
   const form = $("#workout-form");
   form.reset();
-  form.dataset.id = workout?.id || "";
-  $("#workout-modal-title").textContent = workout ? "Edit workout" : "Log workout";
-  $("#workout-date").value = workout?.workout_date || isoToday();
+  form.dataset.id = repeat ? "" : workout?.id || "";
+  form.dataset.mode = repeat ? "repeat" : workout ? "edit" : "create";
+  $("#workout-modal-title").textContent = repeat ? "Repeat workout" : workout ? "Edit workout" : "Log workout";
+  $("#workout-date").value = repeat ? isoToday() : workout?.workout_date || isoToday();
   $("#workout-title").value = workout?.title || "Workout";
   $("#workout-duration").value = workout?.duration_minutes || "";
   $("#workout-notes").value = workout?.notes || "";
@@ -282,6 +314,7 @@ function collectWorkout() {
         weight_kg: Number($(".set-weight", row).value),
         reps: Number($(".set-reps", row).value),
         rpe: $(".set-rpe", row).value ? Number($(".set-rpe", row).value) : null,
+        is_drop_set: $(".set-drop", row).checked,
       })),
     })),
   };
@@ -291,28 +324,6 @@ async function refreshAfterMutation(message) {
   await loadApplication($("#show-archived").checked);
   showToast(message);
 }
-
-$("#login-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  setBusy(form, true);
-  $("#login-error").textContent = "";
-  try {
-    state.user = await api.login(Object.fromEntries(new FormData(form)));
-    await loadApplication();
-    showApplication();
-  } catch (error) {
-    $("#login-error").textContent = error.message;
-  } finally {
-    setBusy(form, false);
-  }
-});
-
-$("#logout-button").addEventListener("click", async () => {
-  await api.logout().catch(() => null);
-  state.user = null;
-  showLogin();
-});
 
 $("#machine-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -346,7 +357,10 @@ $("#workout-form").addEventListener("submit", async (event) => {
     if (form.dataset.id) await api.updateWorkout(form.dataset.id, payload);
     else await api.createWorkout(payload);
     $("#workout-dialog").close();
-    await refreshAfterMutation(form.dataset.id ? "Workout updated" : "Workout logged");
+    const message = form.dataset.mode === "repeat"
+      ? "Workout repeated"
+      : form.dataset.id ? "Workout updated" : "Workout logged";
+    await refreshAfterMutation(message);
   } catch (error) {
     showToast(error.message, "error");
   } finally {
@@ -375,6 +389,9 @@ document.addEventListener("click", async (event) => {
     renumberSets(entry);
   }
   if (action === "remove-entry") button.closest(".entry-card").remove();
+  if (action === "repeat-workout") {
+    openWorkoutDialog(state.workouts.find((item) => item.id === id), { repeat: true });
+  }
   if (action === "edit-workout") openWorkoutDialog(state.workouts.find((item) => item.id === id));
   if (action === "delete-workout") {
     if (!window.confirm("Delete this workout and all of its sets?")) return;
@@ -397,6 +414,12 @@ document.addEventListener("click", async (event) => {
       await refreshAfterMutation("Machine restored");
     } catch (error) { showToast(error.message, "error"); }
   }
+});
+
+document.addEventListener("change", (event) => {
+  if (!event.target.matches(".entry-muscle")) return;
+  const entry = event.target.closest(".entry-card");
+  $(".entry-machine", entry).innerHTML = machineOptions(event.target.value);
 });
 
 $("#add-exercise-button").addEventListener("click", () => {

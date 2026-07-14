@@ -27,8 +27,6 @@ async function request(path, options = {}) {
 
 export const api = {
   me: () => request("/auth/me"),
-  login: (credentials) => request("/auth/login", { method: "POST", body: credentials }),
-  logout: () => request("/auth/logout", { method: "POST" }),
   machines: (includeArchived = false) => request(`/machines?include_archived=${includeArchived}`),
   createMachine: (data) => request("/machines", { method: "POST", body: data }),
   updateMachine: (id, data) => request(`/machines/${id}`, { method: "PATCH", body: data }),
