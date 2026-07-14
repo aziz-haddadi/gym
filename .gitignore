@@ -1,0 +1,45 @@
+.env
+.env.*
+!.env.example
+**/.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+secrets/
+!secrets/
+secrets/*
+!secrets/.gitkeep
+backups/*
+!backups/.gitkeep
+
+# Live reverse-proxy configuration contains the real Basic Auth hash.
+Caddyfile
+deploy/Caddyfile
+
+# Credentials and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+credentials.json
+
+# Node tooling (the current frontend has no Node runtime dependency)
+node_modules/
+.npm/
+.yarn/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+build/
+
+.DS_Store
+.idea/
+.vscode/

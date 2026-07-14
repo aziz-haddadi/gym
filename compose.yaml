@@ -1,0 +1,144 @@
+name: gym-pulgaa
+
+x-app-environment: &app-environment
+  GYM_PUBLIC_URL: ${GYM_PUBLIC_URL:-https://gym.pulgaa.xyz}
+  GYM_ALLOWED_HOSTS: ${GYM_ALLOWED_HOSTS:-gym.pulgaa.xyz,localhost,127.0.0.1}
+  GYM_COOKIE_SECURE: ${GYM_COOKIE_SECURE:-true}
+  GYM_ADMIN_USERNAME: ${GYM_ADMIN_USERNAME:-pulgaa}
+  GYM_ADMIN_TIMEZONE: ${GYM_ADMIN_TIMEZONE:-Africa/Tunis}
+  GYM_TRUST_PROXY_AUTH: ${GYM_TRUST_PROXY_AUTH:-true}
+  GYM_PROXY_AUTH_HEADER: ${GYM_PROXY_AUTH_HEADER:-X-Gym-User}
+  GYM_DB_NAME: ${GYM_DB_NAME:-gym}
+  GYM_DB_USER: ${GYM_DB_USER:-gym_app}
+  GYM_DB_HOST: ${GYM_DB_HOST:-db}
+  GYM_DB_PORT: ${GYM_DB_PORT:-5432}
+  GYM_DB_PASSWORD_FILE: /run/secrets/postgres_app_password
+  GYM_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+  GYM_SESSION_DAYS: ${GYM_SESSION_DAYS:-30}
+  GYM_DB_POOL_SIZE: ${GYM_DB_POOL_SIZE:-10}
+  GYM_DB_MAX_OVERFLOW: ${GYM_DB_MAX_OVERFLOW:-20}
+  GYM_LOG_LEVEL: ${GYM_LOG_LEVEL:-INFO}
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    build:
+      context: ./docker/postgres
+      dockerfile: Dockerfile
+    image: gym-pulgaa-postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${GYM_DB_NAME:-gym}
+      POSTGRES_USER: ${GYM_DB_ADMIN_USER:-gym_admin}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_admin_password
+      GYM_DB_USER: ${GYM_DB_USER:-gym_app}
+      GYM_DB_PASSWORD_FILE: /run/secrets/postgres_app_password
+    secrets:
+      - postgres_admin_password
+      - postgres_app_password
+    volumes:
+      - gym-postgres-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    shm_size: 128mb
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
+    logging: *default-logging
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: gym-pulgaa:latest
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    environment: *app-environment
+    secrets:
+      - postgres_app_password
+      - admin_password
+    networks:
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    logging: *default-logging
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: gym-pulgaa:latest
+    restart: unless-stopped
+    environment: *app-environment
+    secrets:
+      - postgres_app_password
+      - admin_password
+    ports:
+      - "127.0.0.1:${GYM_HTTP_PORT:-8013}:8000"
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 256
+    logging: *default-logging
+
+volumes:
+  gym-postgres-data:
+    name: gym-pulgaa-postgres-data
+
+networks:
+  frontend:
+    name: gym-pulgaa-frontend
+  backend:
+    name: gym-pulgaa-backend
+    internal: true
+
+secrets:
+  postgres_admin_password:
+    file: ./secrets/postgres_admin_password.txt
+  postgres_app_password:
+    file: ./secrets/postgres_app_password.txt
+  admin_password:
+    file: ./secrets/admin_password.txt

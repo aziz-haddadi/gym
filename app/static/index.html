@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b0d0c">
+    <meta name="description" content="Private workout, machine, progress, and streak tracker.">
+    <title>FORGE — Gym Tracker</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script type="module" src="/static/js/app.js"></script>
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+
+    <section id="loading-screen" class="center-screen">
+      <div class="loader-mark" aria-label="Loading">F</div>
+    </section>
+
+    <section id="login-screen" class="center-screen hidden">
+      <div class="login-card">
+        <div class="brand-lockup">
+          <span class="brand-mark">F</span>
+          <div><strong>FORGE</strong><small>TRAINING LOG</small></div>
+        </div>
+        <div class="login-copy">
+          <p class="eyebrow">Private access</p>
+          <h1>Build strength.<br>Keep the proof.</h1>
+          <p>Sign in to your private training log.</p>
+        </div>
+        <form id="login-form" class="stack-form">
+          <label>Username<input name="username" autocomplete="username" required maxlength="64"></label>
+          <label>Password<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
+          <button class="button primary full" type="submit">Enter the gym</button>
+          <p id="login-error" class="form-error" role="alert"></p>
+        </form>
+      </div>
+    </section>
+
+    <div id="app-shell" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="brand-lockup sidebar-brand">
+          <span class="brand-mark">F</span>
+          <div><strong>FORGE</strong><small>TRAINING LOG</small></div>
+        </div>
+        <nav class="main-nav" aria-label="Main navigation">
+          <button class="nav-item active" data-view="dashboard"><span>⌁</span>Overview</button>
+          <button class="nav-item" data-view="workouts"><span>↗</span>Workouts</button>
+          <button class="nav-item" data-view="machines"><span>◇</span>Machines</button>
+        </nav>
+        <div class="sidebar-foot">
+          <div class="user-chip">
+            <span id="user-avatar">P</span>
+            <div><strong id="user-name">pulgaa</strong><small>Private athlete</small></div>
+          </div>
+          <button id="logout-button" class="icon-button" title="Log out" aria-label="Log out">↪</button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="mobile-header">
+          <div class="brand-lockup"><span class="brand-mark">F</span><strong>FORGE</strong></div>
+          <button class="button primary compact js-new-workout">+ Log workout</button>
+        </header>
+
+        <section id="view-dashboard" class="view active-view">
+          <div class="page-heading hero-heading">
+            <div>
+              <p id="today-label" class="eyebrow">TODAY</p>
+              <h1>Ready to put<br>in the work?</h1>
+            </div>
+            <button class="button primary desktop-action js-new-workout"><span>+</span> Log workout</button>
+          </div>
+
+          <div id="metric-grid" class="metric-grid" aria-live="polite"></div>
+
+          <div class="dashboard-grid">
+            <article class="panel chart-panel">
+              <div class="panel-heading">
+                <div><p class="eyebrow">12 week trend</p><h2>Training volume</h2></div>
+                <span class="legend-dot">Volume kg</span>
+              </div>
+              <div id="volume-chart" class="volume-chart"></div>
+            </article>
+
+            <article class="panel records-panel">
+              <div class="panel-heading">
+                <div><p class="eyebrow">Top lifts</p><h2>Personal records</h2></div>
+              </div>
+              <div id="records-list" class="records-list"></div>
+            </article>
+          </div>
+
+          <section class="section-block">
+            <div class="section-heading"><div><p class="eyebrow">Latest sessions</p><h2>Recent workouts</h2></div><button class="text-button" data-go-view="workouts">View all →</button></div>
+            <div id="recent-workouts" class="workout-list"></div>
+          </section>
+        </section>
+
+        <section id="view-workouts" class="view">
+          <div class="page-heading">
+            <div><p class="eyebrow">Training history</p><h1>Workouts</h1><p class="page-subtitle">Every session, set, rep, and kilogram.</p></div>
+            <button class="button primary js-new-workout"><span>+</span> Log workout</button>
+          </div>
+          <div id="all-workouts" class="workout-list roomy"></div>
+        </section>
+
+        <section id="view-machines" class="view">
+          <div class="page-heading">
+            <div><p class="eyebrow">Exercise library</p><h1>Machines</h1><p class="page-subtitle">Build your gym floor once, then log faster.</p></div>
+            <button id="new-machine-button" class="button primary"><span>+</span> Add machine</button>
+          </div>
+          <label class="archive-toggle"><input id="show-archived" type="checkbox"> Show archived machines</label>
+          <div id="machine-grid" class="machine-grid"></div>
+        </section>
+      </main>
+
+      <nav class="mobile-nav" aria-label="Mobile navigation">
+        <button class="nav-item active" data-view="dashboard"><span>⌁</span>Overview</button>
+        <button class="nav-item" data-view="workouts"><span>↗</span>Workouts</button>
+        <button class="nav-item" data-view="machines"><span>◇</span>Machines</button>
+      </nav>
+    </div>
+
+    <dialog id="workout-dialog" class="modal workout-modal">
+      <form id="workout-form" method="dialog">
+        <div class="modal-head">
+          <div><p class="eyebrow">Training session</p><h2 id="workout-modal-title">Log workout</h2></div>
+          <button class="close-button" type="button" data-close-dialog="workout-dialog" aria-label="Close">×</button>
+        </div>
+        <div class="form-grid three">
+          <label>Date<input id="workout-date" name="workout_date" type="date" required></label>
+          <label>Session name<input id="workout-title" name="title" required maxlength="100" placeholder="Push day"></label>
+          <label>Duration (min)<input id="workout-duration" name="duration_minutes" type="number" min="1" max="1440" placeholder="60"></label>
+        </div>
+        <label class="wide-label">Session notes<textarea id="workout-notes" name="notes" rows="2" maxlength="5000" placeholder="How did the session feel?"></textarea></label>
+
+        <div class="exercise-heading"><div><p class="eyebrow">Exercises</p><h3>Machines & sets</h3></div><button id="add-exercise-button" class="button secondary compact" type="button">+ Add machine</button></div>
+        <div id="entry-list" class="entry-list"></div>
+
+        <div class="modal-actions">
+          <button class="button ghost" type="button" data-close-dialog="workout-dialog">Cancel</button>
+          <button class="button primary" type="submit">Save workout</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="machine-dialog" class="modal small-modal">
+      <form id="machine-form" method="dialog">
+        <div class="modal-head">
+          <div><p class="eyebrow">Exercise library</p><h2 id="machine-modal-title">Add machine</h2></div>
+          <button class="close-button" type="button" data-close-dialog="machine-dialog" aria-label="Close">×</button>
+        </div>
+        <label>Machine name<input id="machine-name" name="name" required maxlength="100" placeholder="Incline chest press"></label>
+        <label>Muscle group
+          <select id="machine-group" name="muscle_group" required>
+            <option>Chest</option><option>Back</option><option>Shoulders</option><option>Arms</option>
+            <option>Legs</option><option>Core</option><option>Cardio</option><option>Full Body</option><option>Other</option>
+          </select>
+        </label>
+        <label>Notes<textarea id="machine-notes" name="notes" rows="4" maxlength="2000" placeholder="Seat position, setup cues, or machine number"></textarea></label>
+        <div class="modal-actions">
+          <button class="button ghost" type="button" data-close-dialog="machine-dialog">Cancel</button>
+          <button class="button primary" type="submit">Save machine</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
+
