@@ -14,7 +14,7 @@ create_secret() {
         printf 'Keeping existing %s\n' "${destination}"
         return
     fi
-    openssl rand -base64 36 > "${destination}"
+    openssl rand -hex 32 > "${destination}"
     chmod 644 "${destination}"
     printf 'Created %s\n' "${destination}"
 }
