@@ -3,6 +3,7 @@ import { compactNumber, escapeHtml, isoToday, localDate } from "./format.js";
 
 const state = {
   user: null,
+  agenda: [],
   machines: [],
   workouts: [],
   stats: null,
@@ -20,6 +21,16 @@ const MUSCLE_GROUPS = Object.freeze([
   "Core",
   "Cardio",
   "Other",
+]);
+
+const WEEKDAYS = Object.freeze([
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
 ]);
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -62,11 +73,13 @@ async function initialize() {
 }
 
 async function loadApplication(includeArchived = false) {
-  const [machines, workoutPage, stats] = await Promise.all([
+  const [agenda, machines, workoutPage, stats] = await Promise.all([
+    api.agenda(),
     api.machines(includeArchived),
     api.workouts(),
     api.stats(),
   ]);
+  state.agenda = agenda;
   state.machines = machines;
   state.workouts = workoutPage.items;
   state.stats = stats;
@@ -91,6 +104,7 @@ function renderAll() {
   renderChart();
   renderRecords();
   renderWorkouts();
+  renderAgenda();
   renderMachines();
 }
 
@@ -173,6 +187,49 @@ function renderWorkouts() {
     : emptyState("No workouts logged", "Add machines, then record your first session.", true);
 }
 
+function todayAgendaIndex() {
+  return (new Date().getDay() + 6) % 7;
+}
+
+function dateForAgendaDay(dayOfWeek) {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + dayOfWeek - todayAgendaIndex());
+  return date;
+}
+
+function renderAgenda() {
+  const byDay = new Map(state.agenda.map((item) => [item.day_of_week, item]));
+  const today = todayAgendaIndex();
+  $("#agenda-week").innerHTML = WEEKDAYS.map((weekday, dayOfWeek) => {
+    const item = byDay.get(dayOfWeek);
+    const date = dateForAgendaDay(dayOfWeek);
+    const dateLabel = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
+      .format(date);
+    return `<article class="agenda-card ${item ? "planned" : "rest-day"} ${dayOfWeek === today ? "today" : ""}">
+      <div class="agenda-day">
+        <span>${String(dayOfWeek + 1).padStart(2, "0")}</span>
+        <div>
+          <p>${weekday}${dayOfWeek === today ? '<b class="today-pill">Today</b>' : ""}</p>
+          <time datetime="${date.toISOString().slice(0, 10)}">${dateLabel}</time>
+        </div>
+      </div>
+      <div class="agenda-plan">
+        <p class="eyebrow">${item ? "Planned workout" : "Recovery"}</p>
+        <h2>${escapeHtml(item?.workout_name || "Rest day")}</h2>
+        <p>${escapeHtml(item?.notes || (item ? "Ready when you are." : "No workout planned."))}</p>
+      </div>
+      <div class="agenda-actions">
+        ${item
+          ? `<button class="button secondary compact" data-action="log-agenda" data-day="${dayOfWeek}">Log workout</button>
+             <button class="text-button" data-action="edit-agenda" data-day="${dayOfWeek}">Edit</button>
+             <button class="text-button danger-text" data-action="delete-agenda" data-day="${dayOfWeek}">Clear</button>`
+          : `<button class="text-button" data-action="plan-agenda" data-day="${dayOfWeek}">+ Plan this day</button>`}
+      </div>
+    </article>`;
+  }).join("");
+}
+
 function renderMachines() {
   if (!state.machines.length) {
     $("#machine-grid").innerHTML = emptyState("Your gym floor is empty", "Add the machines and movements you train with.", false);
@@ -185,20 +242,24 @@ function renderMachines() {
       .sort((left, right) => left.name.localeCompare(right.name)),
   })).filter((group) => group.machines.length);
 
-  $("#machine-grid").innerHTML = groupedMachines.map(({ muscleGroup, machines }) => `
-    <section class="muscle-section" aria-labelledby="muscle-${muscleGroup.toLowerCase().replaceAll(" ", "-")}">
-      <div class="muscle-section-heading">
+  const collapseByDefault = window.matchMedia("(max-width: 700px)").matches;
+  $("#machine-grid").innerHTML = groupedMachines.map(({ muscleGroup, machines }) => {
+    const slug = muscleGroup.toLowerCase().replaceAll(" ", "-");
+    return `
+    <section class="muscle-section ${collapseByDefault ? "collapsed" : ""}" aria-labelledby="muscle-${slug}">
+      <button class="muscle-section-heading" type="button" data-action="toggle-muscle" aria-expanded="${!collapseByDefault}" aria-controls="muscle-grid-${slug}">
         <div>
           <p class="eyebrow">Muscle group</p>
-          <h2 id="muscle-${muscleGroup.toLowerCase().replaceAll(" ", "-")}">${escapeHtml(muscleGroup)}</h2>
+          <h2 id="muscle-${slug}">${escapeHtml(muscleGroup)}</h2>
         </div>
-        <span>${machines.length} ${machines.length === 1 ? "exercise" : "exercises"}</span>
-      </div>
-      <div class="machine-grid">
+        <span class="muscle-summary"><span>${machines.length} ${machines.length === 1 ? "exercise" : "exercises"}</span><i aria-hidden="true">⌄</i></span>
+      </button>
+      <div id="muscle-grid-${slug}" class="machine-grid">
         ${machines.map(machineCard).join("")}
       </div>
     </section>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function machineCard(machine) {
@@ -243,6 +304,23 @@ function openMachineDialog(machine = null) {
     $("#machine-notes").value = machine.notes || "";
   }
   dialog.showModal();
+}
+
+function openAgendaDialog(item = null, preferredDay = null) {
+  const form = $("#agenda-form");
+  const occupiedDays = new Set(state.agenda.map((day) => day.day_of_week));
+  const firstOpenDay = WEEKDAYS.findIndex((_, index) => !occupiedDays.has(index));
+  const dayOfWeek = item?.day_of_week
+    ?? preferredDay
+    ?? (firstOpenDay >= 0 ? firstOpenDay : todayAgendaIndex());
+  form.reset();
+  form.dataset.day = String(dayOfWeek);
+  $("#agenda-modal-title").textContent = item ? "Edit agenda day" : "Add agenda day";
+  $("#agenda-day").value = String(dayOfWeek);
+  $("#agenda-day").disabled = Boolean(item);
+  $("#agenda-name").value = item?.workout_name || "";
+  $("#agenda-notes").value = item?.notes || "";
+  $("#agenda-dialog").showModal();
 }
 
 function defaultMuscleGroup() {
@@ -371,6 +449,29 @@ $("#machine-form").addEventListener("submit", async (event) => {
   }
 });
 
+$("#agenda-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!form.reportValidity()) return;
+  setBusy(form, true);
+  const dayOfWeek = Number($("#agenda-day").value);
+  try {
+    const saved = await api.saveAgendaDay(dayOfWeek, {
+      workout_name: $("#agenda-name").value.trim(),
+      notes: $("#agenda-notes").value.trim() || null,
+    });
+    state.agenda = [...state.agenda.filter((item) => item.day_of_week !== dayOfWeek), saved]
+      .sort((left, right) => left.day_of_week - right.day_of_week);
+    $("#agenda-dialog").close();
+    renderAgenda();
+    showToast("Agenda updated");
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    setBusy(form, false);
+  }
+});
+
 $("#workout-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -399,10 +500,43 @@ document.addEventListener("click", async (event) => {
   if (button.dataset.view) navigate(button.dataset.view);
   if (button.dataset.goView) navigate(button.dataset.goView);
   if (button.matches(".js-new-workout")) openWorkoutDialog();
+  if (button.id === "new-agenda-button") {
+    const occupiedDays = new Set(state.agenda.map((item) => item.day_of_week));
+    const firstOpenDay = WEEKDAYS.findIndex((_, index) => !occupiedDays.has(index));
+    const day = firstOpenDay >= 0 ? firstOpenDay : todayAgendaIndex();
+    openAgendaDialog(state.agenda.find((item) => item.day_of_week === day), day);
+  }
   if (button.id === "new-machine-button") openMachineDialog();
   if (button.dataset.closeDialog) $(`#${button.dataset.closeDialog}`).close();
 
   const { action, id } = button.dataset;
+  const agendaDay = button.dataset.day === undefined ? null : Number(button.dataset.day);
+  if (action === "toggle-muscle") {
+    const section = button.closest(".muscle-section");
+    const collapsed = section.classList.toggle("collapsed");
+    button.setAttribute("aria-expanded", String(!collapsed));
+  }
+  if (action === "plan-agenda") openAgendaDialog(null, agendaDay);
+  if (action === "edit-agenda") {
+    openAgendaDialog(state.agenda.find((item) => item.day_of_week === agendaDay));
+  }
+  if (action === "log-agenda") {
+    const item = state.agenda.find((agendaItem) => agendaItem.day_of_week === agendaDay);
+    openWorkoutDialog();
+    if (item && $("#workout-dialog").open) {
+      $("#workout-title").value = item.workout_name;
+      $("#workout-notes").value = item.notes || "";
+    }
+  }
+  if (action === "delete-agenda") {
+    if (!window.confirm(`Clear the ${WEEKDAYS[agendaDay]} plan?`)) return;
+    try {
+      await api.deleteAgendaDay(agendaDay);
+      state.agenda = state.agenda.filter((item) => item.day_of_week !== agendaDay);
+      renderAgenda();
+      showToast("Agenda day cleared");
+    } catch (error) { showToast(error.message, "error"); }
+  }
   if (action === "add-set") {
     $(".sets-list", button.closest(".entry-card")).insertAdjacentHTML("beforeend", setRow());
     renumberSets(button.closest(".entry-card"));

@@ -27,6 +27,9 @@ async function request(path, options = {}) {
 
 export const api = {
   me: () => request("/auth/me"),
+  agenda: () => request("/agenda"),
+  saveAgendaDay: (dayOfWeek, data) => request(`/agenda/${dayOfWeek}`, { method: "PUT", body: data }),
+  deleteAgendaDay: (dayOfWeek) => request(`/agenda/${dayOfWeek}`, { method: "DELETE" }),
   machines: (includeArchived = false) => request(`/machines?include_archived=${includeArchived}`),
   createMachine: (data) => request("/machines", { method: "POST", body: data }),
   updateMachine: (id, data) => request(`/machines/${id}`, { method: "PATCH", body: data }),

@@ -1,9 +1,9 @@
 # FORGE — Gym Pulgaa
 
 A private, self-hosted workout tracker for `gym.pulgaa.xyz`. It records machines,
-workout days, regular and drop sets, fractional weights, reps, RPE, notes, volume,
-personal records, and daily streaks. Saved workouts can be repeated as new sessions
-without entering the full day again.
+workout days, a reusable weekly agenda, regular and drop sets, fractional weights,
+reps, RPE, notes, volume, personal records, and daily streaks. Saved workouts can be
+repeated as new sessions without entering the full day again.
 
 ## Architecture
 
@@ -44,8 +44,9 @@ authentication remains available for automated tests and API development by sett
    only the trusted `X-Gym-User: pulgaa` identity header.
 4. FastAPI maps that identity to the bootstrapped account and serves the static web
    interface. The app port cannot be reached remotely because it is bound to loopback.
-5. Browser JavaScript calls same-origin `/api` endpoints for machines, workouts, and
-   statistics. There are no third-party browser APIs or CDN dependencies.
+5. Browser JavaScript calls same-origin `/api` endpoints for the weekly agenda,
+   machines, workouts, and statistics. There are no third-party browser APIs or CDN
+   dependencies.
 6. API routes validate transport data, services enforce ownership and business rules,
    repositories isolate persistence queries, and SQLAlchemy writes to PostgreSQL.
 7. A workout is stored as one workout row, ordered muscle-filtered machine entries,
@@ -64,6 +65,12 @@ start. Rebuilding the application does not recreate or delete the named data vol
 Workout cards include a repeat action. It opens the saved session with today's date
 and copies its machines, fractional weights, reps, RPE values, notes, duration, and
 drop-set markers. Saving creates a new workout; the original remains unchanged.
+
+The Agenda stores one planned workout name and optional note for each weekday. Its
+Log workout action prefills the regular workout form. Planning alone does not affect
+volume, statistics, or streaks; those update only after the workout is saved. Machine
+sections are grouped by muscle and collapse by default on small screens for faster
+navigation.
 
 ## VPS deployment
 

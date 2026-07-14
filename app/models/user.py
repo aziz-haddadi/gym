@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.agenda import AgendaDay
     from app.models.machine import Machine
     from app.models.session import AuthSession
     from app.models.workout import Workout
@@ -24,6 +25,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="user", cascade="all, delete-orphan"
     )
     workouts: Mapped[list[Workout]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    agenda_days: Mapped[list[AgendaDay]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
     sessions: Mapped[list[AuthSession]] = relationship(

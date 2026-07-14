@@ -230,13 +230,33 @@ input::placeholder, textarea::placeholder { color: #555c53; }
 .workout-numbers span { color: var(--muted); margin-top: 3px; font-size: 8px; text-transform: uppercase; }
 .card-actions { display: flex; gap: 6px; }
 
+.agenda-week { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.agenda-card { min-width: 0; display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 18px; min-height: 205px; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.agenda-card.today { border-color: rgba(200,255,50,.46); box-shadow: inset 3px 0 0 var(--acid); }
+.agenda-card.rest-day { background: rgba(21,25,21,.62); }
+.agenda-day { display: flex; flex-direction: column; gap: 9px; padding-right: 14px; border-right: 1px solid var(--line); }
+.agenda-day > span { color: var(--acid); font-size: 25px; font-weight: 850; letter-spacing: -.04em; }
+.agenda-day p { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 11px; font-weight: 800; }
+.agenda-day time { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.today-pill { padding: 3px 5px; color: #11150b; background: var(--acid); border-radius: 4px; font-size: 7px; letter-spacing: .06em; text-transform: uppercase; }
+.agenda-plan { min-width: 0; }
+.agenda-plan h2 { overflow-wrap: anywhere; margin: 7px 0 9px; font-size: 23px; letter-spacing: -.035em; }
+.agenda-plan > p:last-child { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.agenda-actions { grid-column: 2; align-self: end; display: flex; flex-wrap: wrap; align-items: center; gap: 13px; padding-top: 12px; }
+.agenda-actions .text-button { padding: 0; }
+
 .archive-toggle { width: max-content; display: flex; grid-template-columns: auto auto; align-items: center; gap: 8px; margin: -26px 0 25px; cursor: pointer; }
 .archive-toggle input { width: 15px; height: 15px; accent-color: var(--acid); }
 .machine-groups { display: grid; gap: 42px; }
 .muscle-section { min-width: 0; }
-.muscle-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 15px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+.muscle-section-heading { width: 100%; display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 15px; padding: 0 0 13px; color: var(--text); background: transparent; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; text-align: left; }
+.muscle-section-heading:hover { border-color: rgba(200,255,50,.35); }
 .muscle-section-heading h2 { margin: 5px 0 0; font-size: 25px; letter-spacing: -.035em; }
-.muscle-section-heading > span { padding: 6px 9px; color: var(--muted); background: var(--surface-2); border-radius: 6px; font-size: 9px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; text-transform: uppercase; }
+.muscle-summary { display: flex; align-items: center; gap: 9px; }
+.muscle-summary > span { padding: 6px 9px; color: var(--muted); background: var(--surface-2); border-radius: 6px; font-size: 9px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; text-transform: uppercase; }
+.muscle-summary i { color: var(--acid); font-size: 19px; font-style: normal; transform: rotate(180deg); transition: transform .18s ease; }
+.muscle-section.collapsed .muscle-summary i { transform: none; }
+.muscle-section.collapsed .machine-grid { display: none; }
 .machine-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
 .machine-card { min-height: 245px; display: flex; flex-direction: column; padding: 21px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .machine-card.archived { opacity: .52; }
@@ -317,6 +337,7 @@ input::placeholder, textarea::placeholder { color: #555c53; }
   .content { margin-left: 205px; padding-inline: 25px; }
   .dashboard-grid { grid-template-columns: 1fr; }
   .records-panel { min-height: auto; }
+  .agenda-week { grid-template-columns: 1fr; }
   .machine-grid { grid-template-columns: 1fr; }
 }
 
@@ -328,7 +349,7 @@ input::placeholder, textarea::placeholder { color: #555c53; }
   .mobile-header .brand-mark { width: 32px; height: 32px; font-size: 17px; }
   .mobile-header .brand-lockup { gap: 9px; }
   .mobile-header .brand-lockup strong { font-size: 14px; }
-  .mobile-nav { position: fixed; inset: auto 0 0; z-index: 50; display: grid; grid-template-columns: repeat(3, 1fr); height: 68px; padding: 7px 11px calc(7px + env(safe-area-inset-bottom)); background: rgba(13,16,13,.96); border-top: 1px solid var(--line); backdrop-filter: blur(15px); }
+  .mobile-nav { position: fixed; inset: auto 0 0; z-index: 50; display: grid; grid-template-columns: repeat(4, 1fr); height: 68px; padding: 7px 7px calc(7px + env(safe-area-inset-bottom)); background: rgba(13,16,13,.96); border-top: 1px solid var(--line); backdrop-filter: blur(15px); }
   .mobile-nav .nav-item { min-height: 53px; flex-direction: column; justify-content: center; gap: 2px; padding: 0; font-size: 8px; border-radius: 7px; }
   .mobile-nav .nav-item span { width: auto; font-size: 17px; }
   .page-heading { flex-direction: column; align-items: flex-start; margin-bottom: 31px; }
@@ -342,6 +363,12 @@ input::placeholder, textarea::placeholder { color: #555c53; }
   .volume-chart { height: 190px; gap: 5px; }
   .chart-column small { font-size: 6px; }
   .section-block { margin-top: 42px; }
+  .agenda-card { grid-template-columns: 55px minmax(0, 1fr); gap: 13px; min-height: 190px; padding: 16px 14px; }
+  .agenda-day { padding-right: 10px; }
+  .agenda-day > span { font-size: 21px; }
+  .agenda-plan h2 { font-size: 20px; }
+  .agenda-actions { gap: 11px; }
+  .agenda-actions .button { width: 100%; }
   .workout-card { grid-template-columns: 46px minmax(0, 1fr); grid-template-areas: "date main" "actions actions"; gap: 11px; padding: 12px; }
   .workout-date-block { grid-area: date; }
   .workout-main { grid-area: main; }
@@ -355,6 +382,7 @@ input::placeholder, textarea::placeholder { color: #555c53; }
   .machine-groups { gap: 34px; }
   .muscle-section-heading { align-items: center; }
   .muscle-section-heading h2 { font-size: 22px; }
+  .muscle-summary > span { font-size: 8px; }
   .machine-card { min-height: 215px; }
   .modal { width: calc(100% - 14px); max-height: calc(100vh - 14px); max-height: calc(100dvh - 14px); border-radius: 15px; }
   .modal > form { padding: 21px 16px; }

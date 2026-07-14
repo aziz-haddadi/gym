@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -12,6 +12,13 @@ RUN groupadd --system --gid 1001 gym \
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+
+FROM base AS test-dependencies
+
+COPY requirements-test.txt ./
+RUN pip install --no-cache-dir -r requirements-test.txt
+
+FROM base AS runtime
 
 COPY alembic.ini ./
 COPY migrations ./migrations
@@ -28,11 +35,11 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--proxy-headers", "--forwarded-allow-ips", "*"]
 
-FROM runtime AS test
+FROM test-dependencies AS test
 
-USER root
-COPY requirements-test.txt ./
-RUN pip install --no-cache-dir -r requirements-test.txt
+COPY alembic.ini ./
+COPY migrations ./migrations
+COPY app ./app
 COPY tests ./tests
 COPY pyproject.toml ./
 RUN chown -R gym:gym /app
