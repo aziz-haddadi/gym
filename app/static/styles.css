@@ -232,6 +232,11 @@ input::placeholder, textarea::placeholder { color: #555c53; }
 
 .archive-toggle { width: max-content; display: flex; grid-template-columns: auto auto; align-items: center; gap: 8px; margin: -26px 0 25px; cursor: pointer; }
 .archive-toggle input { width: 15px; height: 15px; accent-color: var(--acid); }
+.machine-groups { display: grid; gap: 42px; }
+.muscle-section { min-width: 0; }
+.muscle-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 15px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+.muscle-section-heading h2 { margin: 5px 0 0; font-size: 25px; letter-spacing: -.035em; }
+.muscle-section-heading > span { padding: 6px 9px; color: var(--muted); background: var(--surface-2); border-radius: 6px; font-size: 9px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; text-transform: uppercase; }
 .machine-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
 .machine-card { min-height: 245px; display: flex; flex-direction: column; padding: 21px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .machine-card.archived { opacity: .52; }
@@ -349,6 +354,9 @@ input::placeholder, textarea::placeholder { color: #555c53; }
   .card-actions .icon-button { width: 44px; height: 38px; }
   .card-actions .repeat-action { width: auto; }
   .machine-grid { gap: 10px; }
+  .machine-groups { gap: 34px; }
+  .muscle-section-heading { align-items: center; }
+  .muscle-section-heading h2 { font-size: 22px; }
   .machine-card { min-height: 215px; }
   .modal { width: calc(100% - 14px); max-height: calc(100vh - 14px); max-height: calc(100dvh - 14px); border-radius: 15px; }
   .modal > form { padding: 21px 16px; }

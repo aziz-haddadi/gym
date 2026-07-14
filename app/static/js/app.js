@@ -178,7 +178,31 @@ function renderMachines() {
     $("#machine-grid").innerHTML = emptyState("Your gym floor is empty", "Add the machines and movements you train with.", false);
     return;
   }
-  $("#machine-grid").innerHTML = state.machines.map((machine) => `
+  const groupedMachines = MUSCLE_GROUPS.map((muscleGroup) => ({
+    muscleGroup,
+    machines: state.machines
+      .filter((machine) => machine.muscle_group === muscleGroup)
+      .sort((left, right) => left.name.localeCompare(right.name)),
+  })).filter((group) => group.machines.length);
+
+  $("#machine-grid").innerHTML = groupedMachines.map(({ muscleGroup, machines }) => `
+    <section class="muscle-section" aria-labelledby="muscle-${muscleGroup.toLowerCase().replaceAll(" ", "-")}">
+      <div class="muscle-section-heading">
+        <div>
+          <p class="eyebrow">Muscle group</p>
+          <h2 id="muscle-${muscleGroup.toLowerCase().replaceAll(" ", "-")}">${escapeHtml(muscleGroup)}</h2>
+        </div>
+        <span>${machines.length} ${machines.length === 1 ? "exercise" : "exercises"}</span>
+      </div>
+      <div class="machine-grid">
+        ${machines.map(machineCard).join("")}
+      </div>
+    </section>
+  `).join("");
+}
+
+function machineCard(machine) {
+  return `
     <article class="machine-card ${machine.active ? "" : "archived"}">
       <div class="machine-symbol">${escapeHtml(machine.name.charAt(0).toUpperCase())}</div>
       <div class="machine-copy">
@@ -193,7 +217,7 @@ function renderMachines() {
           : `<button class="text-button" data-action="restore-machine" data-id="${machine.id}">Restore</button>`}
       </div>
     </article>
-  `).join("");
+  `;
 }
 
 function emptyState(title, copy, withAction) {
