@@ -27,14 +27,16 @@ async function request(path, options = {}) {
 
 export const api = {
   me: () => request("/auth/me"),
-  agenda: () => request("/agenda"),
-  saveAgendaDay: (dayOfWeek, data) => request(`/agenda/${dayOfWeek}`, { method: "PUT", body: data }),
-  deleteAgendaDay: (dayOfWeek) => request(`/agenda/${dayOfWeek}`, { method: "DELETE" }),
   machines: (includeArchived = false) => request(`/machines?include_archived=${includeArchived}`),
   createMachine: (data) => request("/machines", { method: "POST", body: data }),
   updateMachine: (id, data) => request(`/machines/${id}`, { method: "PATCH", body: data }),
   archiveMachine: (id) => request(`/machines/${id}`, { method: "DELETE" }),
-  workouts: () => request("/workouts?limit=100"),
+  workouts: ({ dateFrom = null, dateTo = null, limit = 100, offset = 0 } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    return request(`/workouts?${params}`);
+  },
   createWorkout: (data) => request("/workouts", { method: "POST", body: data }),
   updateWorkout: (id, data) => request(`/workouts/${id}`, { method: "PATCH", body: data }),
   deleteWorkout: (id) => request(`/workouts/${id}`, { method: "DELETE" }),

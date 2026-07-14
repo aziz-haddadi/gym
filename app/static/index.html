@@ -83,10 +83,19 @@
 
         <section id="view-agenda" class="view">
           <div class="page-heading">
-            <div><p class="eyebrow">Weekly training plan</p><h1>Agenda</h1><p class="page-subtitle">Give every training day a purpose.</p></div>
-            <button id="new-agenda-button" class="button primary"><span>+</span> Add plan</button>
+            <div><p class="eyebrow">Training calendar</p><h1>Agenda</h1><p class="page-subtitle">Every logged workout, exactly where it happened.</p></div>
+            <button class="button primary js-new-workout"><span>+</span> Log workout</button>
           </div>
-          <div id="agenda-week" class="agenda-week" aria-live="polite"></div>
+          <div class="calendar-toolbar">
+            <button class="icon-button" type="button" data-action="previous-month" aria-label="Previous month">←</button>
+            <h2 id="agenda-month-label"></h2>
+            <button class="icon-button" type="button" data-action="next-month" aria-label="Next month">→</button>
+          </div>
+          <div class="calendar-weekdays" aria-hidden="true">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span>
+            <span>Fri</span><span>Sat</span><span>Sun</span>
+          </div>
+          <div id="agenda-calendar" class="agenda-calendar" aria-live="polite"></div>
         </section>
 
         <section id="view-workouts" class="view">
@@ -134,29 +143,6 @@
         <div class="modal-actions">
           <button class="button ghost" type="button" data-close-dialog="workout-dialog">Cancel</button>
           <button class="button primary" type="submit">Save workout</button>
-        </div>
-      </form>
-    </dialog>
-
-    <dialog id="agenda-dialog" class="modal small-modal">
-      <form id="agenda-form" method="dialog">
-        <div class="modal-head">
-          <div><p class="eyebrow">Weekly training plan</p><h2 id="agenda-modal-title">Add agenda day</h2></div>
-          <button class="close-button" type="button" data-close-dialog="agenda-dialog" aria-label="Close">×</button>
-        </div>
-        <label>Day
-          <select id="agenda-day" name="day_of_week" required>
-            <option value="0">Monday</option><option value="1">Tuesday</option>
-            <option value="2">Wednesday</option><option value="3">Thursday</option>
-            <option value="4">Friday</option><option value="5">Saturday</option>
-            <option value="6">Sunday</option>
-          </select>
-        </label>
-        <label>Workout name<input id="agenda-name" name="workout_name" required maxlength="100" placeholder="Push day"></label>
-        <label>Notes<textarea id="agenda-notes" name="notes" rows="4" maxlength="2000" placeholder="Focus, time, or preparation notes"></textarea></label>
-        <div class="modal-actions">
-          <button class="button ghost" type="button" data-close-dialog="agenda-dialog">Cancel</button>
-          <button class="button primary" type="submit">Save plan</button>
         </div>
       </form>
     </dialog>

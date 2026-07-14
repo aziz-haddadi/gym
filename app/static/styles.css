@@ -230,20 +230,27 @@ input::placeholder, textarea::placeholder { color: #555c53; }
 .workout-numbers span { color: var(--muted); margin-top: 3px; font-size: 8px; text-transform: uppercase; }
 .card-actions { display: flex; gap: 6px; }
 
-.agenda-week { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
-.agenda-card { min-width: 0; display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 18px; min-height: 205px; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
-.agenda-card.today { border-color: rgba(200,255,50,.46); box-shadow: inset 3px 0 0 var(--acid); }
-.agenda-card.rest-day { background: rgba(21,25,21,.62); }
-.agenda-day { display: flex; flex-direction: column; gap: 9px; padding-right: 14px; border-right: 1px solid var(--line); }
-.agenda-day > span { color: var(--acid); font-size: 25px; font-weight: 850; letter-spacing: -.04em; }
-.agenda-day p { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 11px; font-weight: 800; }
-.agenda-day time { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; text-transform: uppercase; }
-.today-pill { padding: 3px 5px; color: #11150b; background: var(--acid); border-radius: 4px; font-size: 7px; letter-spacing: .06em; text-transform: uppercase; }
-.agenda-plan { min-width: 0; }
-.agenda-plan h2 { overflow-wrap: anywhere; margin: 7px 0 9px; font-size: 23px; letter-spacing: -.035em; }
-.agenda-plan > p:last-child { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
-.agenda-actions { grid-column: 2; align-self: end; display: flex; flex-wrap: wrap; align-items: center; gap: 13px; padding-top: 12px; }
-.agenda-actions .text-button { padding: 0; }
+.calendar-toolbar { display: flex; align-items: center; justify-content: center; gap: 17px; margin: -17px 0 25px; }
+.calendar-toolbar h2 { min-width: 210px; margin: 0; text-align: center; font-size: 23px; letter-spacing: -.03em; }
+.calendar-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.calendar-weekdays span { padding: 0 7px; color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.agenda-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); align-items: stretch; gap: 8px; }
+.calendar-day { min-width: 0; min-height: 160px; display: flex; flex-direction: column; gap: 10px; padding: 11px; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; }
+.calendar-day:first-child { grid-column: var(--calendar-start); }
+.calendar-day.today { border-color: rgba(200,255,50,.52); box-shadow: inset 0 3px 0 var(--acid); }
+.calendar-day.has-workouts { background: linear-gradient(145deg, rgba(26,31,25,.98), var(--surface)); }
+.calendar-date { display: flex; align-items: center; justify-content: space-between; }
+.calendar-date > span { width: 27px; height: 27px; display: grid; place-items: center; color: var(--text); border-radius: 50%; font-size: 12px; font-weight: 850; }
+.calendar-day.today .calendar-date > span { color: #11150b; background: var(--acid); }
+.calendar-date > div { display: none; }
+.calendar-workouts { min-width: 0; display: grid; gap: 6px; }
+.calendar-workout { min-width: 0; display: grid; gap: 4px; padding: 8px; color: var(--text); background: var(--acid-soft); border: 1px solid rgba(200,255,50,.14); border-radius: 7px; cursor: pointer; text-align: left; }
+.calendar-workout:hover { border-color: rgba(200,255,50,.42); }
+.calendar-workout strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.calendar-workout span { overflow: hidden; color: var(--muted); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-empty { margin: 0; color: #596057; font-size: 8px; line-height: 1.4; }
+.calendar-add { width: 28px; height: 28px; display: grid; place-items: center; align-self: flex-end; margin-top: auto; padding: 0; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 7px; cursor: pointer; }
+.calendar-add:hover { color: var(--acid); border-color: rgba(200,255,50,.35); }
 
 .archive-toggle { width: max-content; display: flex; grid-template-columns: auto auto; align-items: center; gap: 8px; margin: -26px 0 25px; cursor: pointer; }
 .archive-toggle input { width: 15px; height: 15px; accent-color: var(--acid); }
@@ -337,7 +344,20 @@ input::placeholder, textarea::placeholder { color: #555c53; }
   .content { margin-left: 205px; padding-inline: 25px; }
   .dashboard-grid { grid-template-columns: 1fr; }
   .records-panel { min-height: auto; }
-  .agenda-week { grid-template-columns: 1fr; }
+  .calendar-weekdays { display: none; }
+  .agenda-calendar { grid-template-columns: 1fr; gap: 9px; }
+  .calendar-day, .calendar-day:first-child { grid-column: auto; }
+  .calendar-day { min-height: 92px; display: grid; grid-template-columns: 72px minmax(0, 1fr) 38px; align-items: center; gap: 13px; padding: 13px; }
+  .calendar-day.today { box-shadow: inset 3px 0 0 var(--acid); }
+  .calendar-date { justify-content: flex-start; gap: 9px; padding-right: 10px; border-right: 1px solid var(--line); }
+  .calendar-date > div { min-width: 0; display: block; }
+  .calendar-date strong { display: block; font-size: 9px; }
+  .calendar-date time { display: block; margin-top: 3px; color: var(--muted); font-size: 7px; text-transform: uppercase; }
+  .calendar-workout { padding: 9px 10px; }
+  .calendar-workout strong { font-size: 11px; }
+  .calendar-workout span { font-size: 8px; }
+  .calendar-empty { font-size: 9px; }
+  .calendar-add { align-self: center; margin-top: 0; }
   .machine-grid { grid-template-columns: 1fr; }
 }
 
@@ -363,12 +383,11 @@ input::placeholder, textarea::placeholder { color: #555c53; }
   .volume-chart { height: 190px; gap: 5px; }
   .chart-column small { font-size: 6px; }
   .section-block { margin-top: 42px; }
-  .agenda-card { grid-template-columns: 55px minmax(0, 1fr); gap: 13px; min-height: 190px; padding: 16px 14px; }
-  .agenda-day { padding-right: 10px; }
-  .agenda-day > span { font-size: 21px; }
-  .agenda-plan h2 { font-size: 20px; }
-  .agenda-actions { gap: 11px; }
-  .agenda-actions .button { width: 100%; }
+  .calendar-toolbar { margin-top: -8px; }
+  .calendar-toolbar h2 { min-width: 170px; font-size: 20px; }
+  .calendar-day { grid-template-columns: 65px minmax(0, 1fr) 34px; gap: 9px; padding: 11px 9px; }
+  .calendar-date { gap: 6px; padding-right: 7px; }
+  .calendar-date > span { width: 24px; height: 24px; font-size: 11px; }
   .workout-card { grid-template-columns: 46px minmax(0, 1fr); grid-template-areas: "date main" "actions actions"; gap: 11px; padding: 12px; }
   .workout-date-block { grid-area: date; }
   .workout-main { grid-area: main; }

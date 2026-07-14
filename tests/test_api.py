@@ -65,6 +65,28 @@ async def test_specific_arm_muscle_groups_replace_combined_groups(authenticated_
         assert response.status_code == 422
 
 
+async def test_workout_date_range_drives_calendar_month(authenticated_client):
+    for workout_date, title in (
+        ("2026-07-14", "July push day"),
+        ("2026-08-02", "August pull day"),
+    ):
+        response = await authenticated_client.post(
+            "/api/workouts",
+            json={"workout_date": workout_date, "title": title},
+        )
+        assert response.status_code == 201
+
+    response = await authenticated_client.get(
+        "/api/workouts?date_from=2026-07-01&date_to=2026-07-31&limit=100"
+    )
+    assert response.status_code == 200
+    page = response.json()
+    assert page["total"] == 1
+    assert [(item["workout_date"], item["title"]) for item in page["items"]] == [
+        ("2026-07-14", "July push day")
+    ]
+
+
 async def test_machine_names_are_unique_per_user(authenticated_client):
     payload = {"name": "Leg Press", "muscle_group": "Legs"}
     assert (await authenticated_client.post("/api/machines", json=payload)).status_code == 201
