@@ -84,6 +84,10 @@ The generated files in `secrets/` are automatically ignored by Git. The initial 
 password is deliberately random because Caddy is the production login boundary.
 Never commit `.env`, `secrets/`, or database dumps.
 
+The `secrets/` directory is mode `700`, while its files are mode `644` so the
+non-root users inside the application and PostgreSQL containers can read their
+individual Docker-mounted secrets.
+
 ### 3. Start PostgreSQL and the application
 
 ```bash

@@ -10,11 +10,12 @@ umask 077
 create_secret() {
     destination="$1"
     if [ -s "${destination}" ]; then
+        chmod 644 "${destination}"
         printf 'Keeping existing %s\n' "${destination}"
         return
     fi
     openssl rand -base64 36 > "${destination}"
-    chmod 600 "${destination}"
+    chmod 644 "${destination}"
     printf 'Created %s\n' "${destination}"
 }
 
