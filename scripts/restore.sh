@@ -36,4 +36,3 @@ docker compose run --rm migrate
 docker compose start app
 trap - EXIT INT TERM
 printf 'Restore completed from %s\n' "${backup_file}"
-

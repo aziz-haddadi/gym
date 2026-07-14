@@ -39,4 +39,3 @@ export const api = {
   deleteWorkout: (id) => request(`/workouts/${id}`, { method: "DELETE" }),
   stats: () => request("/stats/overview"),
 };
-

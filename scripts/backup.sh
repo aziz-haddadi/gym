@@ -27,4 +27,3 @@ chmod 600 "${destination}"
 # Local retention is 30 days. Also copy backups off this VPS.
 find backups -type f -name 'gym-*.dump' -mtime +30 -delete
 printf 'Backup created: %s\n' "${destination}"
-

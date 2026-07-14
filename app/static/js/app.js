@@ -416,4 +416,3 @@ $$('dialog').forEach((dialog) => dialog.addEventListener("click", (event) => {
 }));
 
 initialize();
-

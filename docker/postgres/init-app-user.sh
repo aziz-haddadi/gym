@@ -14,4 +14,3 @@ WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = :'app_user') \
 GRANT CONNECT ON DATABASE :"DBNAME" TO :"app_user";
 GRANT USAGE, CREATE ON SCHEMA public TO :"app_user";
 SQL
-

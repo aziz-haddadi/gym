@@ -7,7 +7,6 @@ export function escapeHtml(value = "") {
     '"': "&quot;",
   })[character]);
 }
-
 export function localDate(value, options = {}) {
   if (!value) return "—";
   return new Intl.DateTimeFormat(undefined, {
@@ -30,4 +29,3 @@ export function isoToday() {
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 10);
 }
-

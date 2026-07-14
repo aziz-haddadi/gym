@@ -23,4 +23,3 @@ create_secret "${secrets_dir}/postgres_app_password.txt"
 create_secret "${secrets_dir}/admin_password.txt"
 
 printf '\nSecrets are ready. They are ignored by Git; do not commit or send them.\n'
-
