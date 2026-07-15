@@ -3,7 +3,8 @@
 A private, self-hosted workout tracker for `gym.pulgaa.xyz`. It records machines,
 workout days, a date-driven calendar agenda, regular and drop sets, fractional
 weights, reps, RPE, notes, volume, personal records, and daily streaks. Saved workouts
-can be repeated as new sessions without entering the full day again.
+can be repeated as new sessions without entering the full day again. Rotating workout
+programs keep the next workout or rest step due without forcing a weekday schedule.
 
 ## Architecture
 
@@ -45,7 +46,8 @@ authentication remains available for automated tests and API development by sett
 4. FastAPI maps that identity to the bootstrapped account and serves the static web
    interface. The app port cannot be reached remotely because it is bound to loopback.
 5. Browser JavaScript calls same-origin `/api` endpoints for date-filtered workouts,
-   machines, and statistics. There are no third-party browser APIs or CDN dependencies.
+   machines, programs, the due cycle step, and statistics. There are no third-party
+   browser APIs or CDN dependencies.
 6. API routes validate transport data, services enforce ownership and business rules,
    repositories isolate persistence queries, and SQLAlchemy writes to PostgreSQL.
 7. A workout is stored as one workout row, ordered muscle-filtered machine entries,
@@ -72,6 +74,36 @@ for editing, and selecting a day's plus action opens a new workout with that dat
 prefilled. On small screens the month becomes a readable vertical day agenda. Machine
 sections are grouped by muscle and collapse by default on small screens for faster
 navigation.
+
+## Workout programs
+
+A program is an arbitrary ordered cycle of workout and rest steps. It can model a
+weekly-looking split such as Arms → Chest + Back → Rest → Legs → Pull → Push → Rest,
+but it is not tied to weekdays and can contain any number or order of steps.
+
+- The active program stores the exact due step ID, not only its numeric position.
+  Reordering or inserting other steps therefore does not silently change what is due.
+- A workout step waits indefinitely until a workout is actually logged. Vacations and
+  missed training days never move the pointer.
+- Logging a workout advances the due workout step in the same database transaction as
+  the new workout. By default any workout advances; a per-program option can instead
+  require the logged exercises to cover every muscle group selected on the step.
+- A rest step becomes due immediately and advances only after a calendar day has
+  elapsed in the user's timezone. Consecutive elapsed rest steps resolve lazily when
+  the due state is read, so no cron job or background worker is required.
+- Skip moves to the next step, while Jump here realigns the active cycle to any chosen
+  step. Activating a saved program asks for confirmation and resets that program to
+  step one.
+- Archiving never deletes a program, its steps, or its saved cycle state. Only one
+  non-archived program can be active per user, enforced by PostgreSQL as well as the
+  service transaction.
+
+The Overview shows the current plan, today's Agenda cell carries the same badge, and
+a fresh workout preselects the first available planned muscle group without locking
+the selector. The Programs editor supports drag reordering on desktop and arrow
+controls on touch screens. There is currently no separate workout-template table, so
+program steps intentionally do not store a template foreign key; the existing Repeat
+action continues to copy a historical workout into a new session.
 
 ## VPS deployment
 

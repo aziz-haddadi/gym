@@ -1,7 +1,6 @@
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
@@ -11,6 +10,7 @@ from app.models.user import User
 from app.models.workout import Workout, WorkoutEntry, WorkoutSet
 from app.schemas.stats import PersonalRecord, StatsOverview, WeeklyStat
 from app.services.streaks import calculate_streaks
+from app.services.time import local_today
 
 
 class StatsService:
@@ -18,11 +18,7 @@ class StatsService:
         self.db = db
 
     def overview(self, user: User) -> StatsOverview:
-        today = date.today()
-        try:
-            today = datetime.now(ZoneInfo(user.timezone)).date()
-        except Exception:  # pragma: no cover - invalid zones are rejected when users are created
-            pass
+        today = local_today(user.timezone)
 
         workout_dates = list(
             self.db.scalars(

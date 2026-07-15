@@ -32,6 +32,7 @@
           <button class="nav-item active" data-view="dashboard"><span>⌁</span>Overview</button>
           <button class="nav-item" data-view="agenda"><span>▦</span>Agenda</button>
           <button class="nav-item" data-view="workouts"><span>↗</span>Workouts</button>
+          <button class="nav-item" data-view="programs"><span>≋</span>Programs</button>
           <button class="nav-item" data-view="machines"><span>◇</span>Machines</button>
         </nav>
         <div class="sidebar-foot">
@@ -55,6 +56,8 @@
             </div>
             <button class="button primary js-new-workout"><span>+</span> Log workout</button>
           </div>
+
+          <div id="today-plan" class="today-plan" aria-live="polite"></div>
 
           <div id="metric-grid" class="metric-grid" aria-live="polite"></div>
 
@@ -106,6 +109,18 @@
           <div id="all-workouts" class="workout-list roomy"></div>
         </section>
 
+        <section id="view-programs" class="view">
+          <div class="page-heading">
+            <div><p class="eyebrow">Rotating training cycle</p><h1>Programs</h1><p class="page-subtitle">Build any sequence of workout and rest steps. FORGE keeps the next step due.</p></div>
+            <button id="new-program-button" class="button primary"><span>+</span> New program</button>
+          </div>
+          <div class="program-explainer">
+            <span>↻</span>
+            <p><strong>Workout steps wait for a logged session.</strong> Rest steps move on after an elapsed calendar day. Missing training never skips your next workout.</p>
+          </div>
+          <div id="program-list" class="program-list" aria-live="polite"></div>
+        </section>
+
         <section id="view-machines" class="view">
           <div class="page-heading">
             <div><p class="eyebrow">Exercise library</p><h1>Machines</h1><p class="page-subtitle">Build your gym floor once, then log faster.</p></div>
@@ -120,6 +135,7 @@
         <button class="nav-item active" data-view="dashboard"><span>⌁</span>Overview</button>
         <button class="nav-item" data-view="agenda"><span>▦</span>Agenda</button>
         <button class="nav-item" data-view="workouts"><span>↗</span>Workouts</button>
+        <button class="nav-item" data-view="programs"><span>≋</span>Programs</button>
         <button class="nav-item" data-view="machines"><span>◇</span>Machines</button>
       </nav>
     </div>
@@ -130,6 +146,7 @@
           <div><p class="eyebrow">Training session</p><h2 id="workout-modal-title">Log workout</h2></div>
           <button class="close-button" type="button" data-close-dialog="workout-dialog" aria-label="Close">×</button>
         </div>
+        <p id="workout-plan-hint" class="workout-plan-hint hidden"></p>
         <div class="form-grid three">
           <label>Date<input id="workout-date" name="workout_date" type="date" required></label>
           <label>Session name<input id="workout-title" name="title" required maxlength="100" placeholder="Push day"></label>
@@ -143,6 +160,34 @@
         <div class="modal-actions">
           <button class="button ghost" type="button" data-close-dialog="workout-dialog">Cancel</button>
           <button class="button primary" type="submit">Save workout</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="program-dialog" class="modal program-modal">
+      <form id="program-form" method="dialog">
+        <div class="modal-head">
+          <div><p class="eyebrow">Rotating training cycle</p><h2 id="program-modal-title">New program</h2></div>
+          <button class="close-button" type="button" data-close-dialog="program-dialog" aria-label="Close">×</button>
+        </div>
+        <div class="program-form-top">
+          <label>Program name<input id="program-name" name="name" required maxlength="100" placeholder="My training split"></label>
+          <label class="setting-check">
+            <input id="program-advance-any" type="checkbox" checked>
+            <span><strong>Any workout advances</strong><small>Turn off to require every planned muscle group in the logged workout.</small></span>
+          </label>
+        </div>
+        <div class="program-editor-heading">
+          <div><p class="eyebrow">Ordered steps</p><h3>Build the cycle</h3><small>Drag steps, or use the arrow buttons on a phone.</small></div>
+          <div>
+            <button class="button secondary compact" type="button" data-action="add-program-workout">+ Workout</button>
+            <button class="button ghost compact" type="button" data-action="add-program-rest">+ Rest</button>
+          </div>
+        </div>
+        <div id="program-step-list" class="program-step-list"></div>
+        <div class="modal-actions">
+          <button class="button ghost" type="button" data-close-dialog="program-dialog">Cancel</button>
+          <button class="button primary" type="submit">Save program</button>
         </div>
       </form>
     </dialog>

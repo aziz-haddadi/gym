@@ -40,5 +40,16 @@ export const api = {
   createWorkout: (data) => request("/workouts", { method: "POST", body: data }),
   updateWorkout: (id, data) => request(`/workouts/${id}`, { method: "PATCH", body: data }),
   deleteWorkout: (id) => request(`/workouts/${id}`, { method: "DELETE" }),
+  programs: (includeArchived = false) => request(`/programs?include_archived=${includeArchived}`),
+  createProgram: (data) => request("/programs", { method: "POST", body: data }),
+  updateProgram: (id, data) => request(`/programs/${id}`, { method: "PATCH", body: data }),
+  updateProgramSteps: (id, steps) => request(`/programs/${id}/steps`, { method: "PUT", body: { steps } }),
+  archiveProgram: (id) => request(`/programs/${id}`, { method: "DELETE" }),
+  activateProgram: (id) => request(`/programs/${id}/activate`, { method: "POST", body: {} }),
+  dueProgramStep: () => request("/programs/active/due"),
+  advanceProgram: (targetStepId = null) => request("/programs/active/advance", {
+    method: "POST",
+    body: { target_step_id: targetStepId },
+  }),
   stats: () => request("/stats/overview"),
 };

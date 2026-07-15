@@ -8,6 +8,7 @@ from app.repositories.machines import MachineRepository
 from app.repositories.workouts import WorkoutRepository
 from app.schemas.workout import WorkoutCreate, WorkoutEntryWrite, WorkoutUpdate
 from app.services.exceptions import InputError, NotFoundError
+from app.services.programs import WorkoutProgramService
 
 
 class WorkoutService:
@@ -25,14 +26,18 @@ class WorkoutService:
             raise NotFoundError("Workout not found")
         return workout
 
-    def _build_entries(self, user: User, entries: list[WorkoutEntryWrite]) -> list[WorkoutEntry]:
+    def _build_entries(
+        self, user: User, entries: list[WorkoutEntryWrite]
+    ) -> tuple[list[WorkoutEntry], set[str]]:
         result: list[WorkoutEntry] = []
+        muscle_groups: set[str] = set()
         for position, entry_data in enumerate(entries):
             machine = self.machines.get_for_user(entry_data.machine_id, user.id)
             if not machine:
                 raise InputError("One of the selected machines does not exist")
             if not machine.active:
                 raise InputError(f"{machine.name} is archived and cannot be added")
+            muscle_groups.add(machine.muscle_group)
             entry = WorkoutEntry(
                 machine_id=machine.id,
                 position=position,
@@ -49,18 +54,20 @@ class WorkoutService:
                 for index, item in enumerate(entry_data.sets, start=1)
             ]
             result.append(entry)
-        return result
+        return result, muscle_groups
 
     def create(self, user: User, data: WorkoutCreate) -> Workout:
+        entries, muscle_groups = self._build_entries(user, data.entries)
         workout = Workout(
             user_id=user.id,
             workout_date=data.workout_date,
             title=data.title,
             duration_minutes=data.duration_minutes,
             notes=data.notes,
-            entries=self._build_entries(user, data.entries),
+            entries=entries,
         )
         self.repository.add(workout)
+        WorkoutProgramService(self.db).advance_after_workout(user, muscle_groups)
         self.db.commit()
         return self.repository.get_for_user(workout.id, user.id)  # type: ignore[return-value]
 
@@ -72,7 +79,7 @@ class WorkoutService:
         if data.entries is not None:
             workout.entries.clear()
             self.db.flush()
-            workout.entries = self._build_entries(user, data.entries)
+            workout.entries = self._build_entries(user, data.entries)[0]
         self.db.commit()
         return self.repository.get_for_user(workout.id, user.id)  # type: ignore[return-value]
 
