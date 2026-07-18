@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Response, status
 
 from app.api.dependencies import CurrentUser, Database
 from app.schemas.program import (
+    ProgramActivateRequest,
     ProgramAdvanceRequest,
     ProgramCreate,
     ProgramDueRead,
@@ -24,6 +25,7 @@ def due_response(due: DueProgramStep | None) -> ProgramDueRead | None:
         due.program,
         due.step,
         due.last_advanced_date,
+        due.is_started,
     )
 
 
@@ -96,10 +98,15 @@ def update_program_steps(
 
 @router.post("/{program_id}/activate", response_model=ProgramRead)
 def activate_program(
-    program_id: uuid.UUID, user: CurrentUser, db: Database
+    program_id: uuid.UUID,
+    user: CurrentUser,
+    db: Database,
+    data: ProgramActivateRequest | None = None,
 ) -> ProgramRead:
     return ProgramRead.from_model(
-        WorkoutProgramService(db).activate(user, program_id)
+        WorkoutProgramService(db).activate(
+            user, program_id, starts_on=data.starts_on if data else None
+        )
     )
 
 

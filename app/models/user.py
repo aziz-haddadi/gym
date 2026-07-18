@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.program import WorkoutProgram
     from app.models.session import AuthSession
     from app.models.workout import Workout
+    from app.models.workout_template import WorkoutTemplate
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -28,6 +29,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="user", cascade="all, delete-orphan"
     )
     programs: Mapped[list[WorkoutProgram]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    workout_templates: Mapped[list[WorkoutTemplate]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
     sessions: Mapped[list[AuthSession]] = relationship(

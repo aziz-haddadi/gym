@@ -9,6 +9,7 @@ from app.repositories.workouts import WorkoutRepository
 from app.schemas.workout import WorkoutCreate, WorkoutEntryWrite, WorkoutUpdate
 from app.services.exceptions import InputError, NotFoundError
 from app.services.programs import WorkoutProgramService
+from app.services.workout_templates import WorkoutTemplateService
 
 
 class WorkoutService:
@@ -16,6 +17,7 @@ class WorkoutService:
         self.db = db
         self.repository = WorkoutRepository(db)
         self.machines = MachineRepository(db)
+        self.templates = WorkoutTemplateService(db)
 
     def list_workouts(self, user: User, **filters) -> tuple[list[Workout], int]:
         return self.repository.list_for_user(user.id, **filters)
@@ -57,9 +59,13 @@ class WorkoutService:
         return result, muscle_groups
 
     def create(self, user: User, data: WorkoutCreate) -> Workout:
+        template = (
+            self.templates.get_loggable(user, data.template_id) if data.template_id else None
+        )
         entries, muscle_groups = self._build_entries(user, data.entries)
         workout = Workout(
             user_id=user.id,
+            template_id=template.id if template else None,
             workout_date=data.workout_date,
             title=data.title,
             duration_minutes=data.duration_minutes,
@@ -67,7 +73,11 @@ class WorkoutService:
             entries=entries,
         )
         self.repository.add(workout)
-        WorkoutProgramService(self.db).advance_after_workout(user, muscle_groups)
+        WorkoutProgramService(self.db).advance_after_workout(
+            user,
+            muscle_groups,
+            template_id=template.id if template else None,
+        )
         self.db.commit()
         return self.repository.get_for_user(workout.id, user.id)  # type: ignore[return-value]
 

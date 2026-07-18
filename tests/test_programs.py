@@ -225,3 +225,28 @@ async def test_manual_jump_and_archiving_active_program(authenticated_client):
     archived = (await authenticated_client.get("/api/programs?include_archived=true")).json()
     assert archived[0]["archived_at"] is not None
     assert archived[0]["is_active"] is False
+
+
+async def test_long_all_rest_cycle_is_resolved_without_day_by_day_iteration(
+    authenticated_client,
+):
+    program = await create_program(
+        authenticated_client,
+        steps=[
+            {"step_type": "rest", "label": "Rest A"},
+            {"step_type": "rest", "label": "Rest B"},
+            {"step_type": "rest", "label": "Rest C"},
+        ],
+    )
+    await authenticated_client.post(f"/api/programs/{program['id']}/activate")
+    elapsed_days = 20_001
+    with SessionLocal() as db:
+        state = db.scalar(select(WorkoutProgramCycleState))
+        state.last_advanced_date = local_today("Africa/Tunis") - timedelta(
+            days=elapsed_days
+        )
+        db.commit()
+
+    due = (await authenticated_client.get("/api/programs/active/due")).json()
+    assert due["step"]["position"] == elapsed_days % 3
+    assert due["last_advanced_date"] == str(local_today("Africa/Tunis"))

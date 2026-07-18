@@ -21,6 +21,7 @@ class WorkoutEntryWrite(BaseModel):
 
 
 class WorkoutCreate(BaseModel):
+    template_id: uuid.UUID | None = None
     workout_date: date
     title: str = Field(default="Workout", min_length=1, max_length=100)
     duration_minutes: int | None = Field(default=None, ge=1, le=1440)
@@ -67,6 +68,8 @@ class WorkoutEntryRead(BaseModel):
 
 class WorkoutRead(BaseModel):
     id: uuid.UUID
+    template_id: uuid.UUID | None
+    template_name: str | None
     workout_date: date
     title: str
     duration_minutes: int | None
@@ -106,6 +109,8 @@ class WorkoutRead(BaseModel):
         volume = sum((item.weight_kg * item.reps for item in all_sets), start=Decimal("0"))
         return cls(
             id=workout.id,
+            template_id=workout.template_id,
+            template_name=workout.template.name if workout.template else None,
             workout_date=workout.workout_date,
             title=workout.title,
             duration_minutes=workout.duration_minutes,

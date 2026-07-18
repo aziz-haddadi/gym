@@ -14,6 +14,7 @@ from app.repositories.programs import WorkoutProgramRepository
 from app.schemas.program import ProgramCreate, ProgramStepsUpdate, ProgramStepWrite, ProgramUpdate
 from app.services.exceptions import InputError, NotFoundError
 from app.services.time import local_today
+from app.services.workout_templates import WorkoutTemplateService
 
 
 @dataclass(frozen=True)
@@ -21,12 +22,21 @@ class DueProgramStep:
     program: WorkoutProgram
     step: WorkoutProgramStep
     last_advanced_date: date
+    is_started: bool
 
 
 class WorkoutProgramService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = WorkoutProgramRepository(db)
+        self.templates = WorkoutTemplateService(db)
+
+    def _validate_linked_templates(
+        self, user: User, steps: list[ProgramStepWrite]
+    ) -> None:
+        for step in steps:
+            if step.linked_workout_template_id:
+                self.templates.get_loggable(user, step.linked_workout_template_id)
 
     def list_programs(
         self, user: User, *, include_archived: bool = False
@@ -53,6 +63,7 @@ class WorkoutProgramService:
                 if data.muscle_groups
                 else None
             ),
+            linked_workout_template_id=data.linked_workout_template_id,
         )
 
     @staticmethod
@@ -65,6 +76,7 @@ class WorkoutProgramService:
         step.muscle_groups = (
             [group.value for group in data.muscle_groups] if data.muscle_groups else None
         )
+        step.linked_workout_template_id = data.linked_workout_template_id
 
     @staticmethod
     def _ordered_steps(program: WorkoutProgram) -> list[WorkoutProgramStep]:
@@ -97,10 +109,12 @@ class WorkoutProgramService:
             raise InputError("Archived workout programs cannot be edited")
 
     def create(self, user: User, data: ProgramCreate) -> WorkoutProgram:
+        self._validate_linked_templates(user, data.steps)
         program = WorkoutProgram(
             user_id=user.id,
             name=data.name,
             advance_on_any_workout=data.advance_on_any_workout,
+            starts_on=data.starts_on or local_today(user.timezone),
         )
         self.db.add(program)
         self.db.flush()
@@ -119,8 +133,14 @@ class WorkoutProgramService:
         if not program:
             raise NotFoundError("Workout program not found")
         self._assert_editable(program)
-        for field, value in data.model_dump(exclude_unset=True).items():
+        changes = data.model_dump(exclude_unset=True)
+        starts_on_changed = "starts_on" in changes and changes["starts_on"] != program.starts_on
+        for field, value in changes.items():
             setattr(program, field, value)
+        if starts_on_changed and program.is_active:
+            steps = self._ordered_steps(program)
+            program.cycle_state.current_step = steps[0]  # type: ignore[union-attr]
+            program.cycle_state.last_advanced_date = program.starts_on  # type: ignore[union-attr]
         self.db.commit()
         return self.repository.refresh_graph(program)
 
@@ -131,6 +151,7 @@ class WorkoutProgramService:
         if not program:
             raise NotFoundError("Workout program not found")
         self._assert_editable(program)
+        self._validate_linked_templates(user, data.steps)
 
         old_steps = self._ordered_steps(program)
         old_by_id = {step.id: step for step in old_steps}
@@ -173,9 +194,13 @@ class WorkoutProgramService:
                         break
                 current = current or new_steps[0]
                 state.current_step = current
-                state.last_advanced_date = local_today(user.timezone)
+                state.last_advanced_date = max(
+                    local_today(user.timezone), program.starts_on
+                )
             elif old_current_type != current.step_type:
-                state.last_advanced_date = local_today(user.timezone)
+                state.last_advanced_date = max(
+                    local_today(user.timezone), program.starts_on
+                )
 
         program.steps = new_steps
         self.db.commit()
@@ -190,7 +215,13 @@ class WorkoutProgramService:
             program.archived_at = utc_now()
             self.db.commit()
 
-    def activate(self, user: User, program_id: uuid.UUID) -> WorkoutProgram:
+    def activate(
+        self,
+        user: User,
+        program_id: uuid.UUID,
+        *,
+        starts_on: date | None = None,
+    ) -> WorkoutProgram:
         # Lock every candidate in a deterministic order before selecting the
         # target. Concurrent activation requests therefore cannot lock two
         # different targets first and deadlock while deactivating each other.
@@ -209,15 +240,15 @@ class WorkoutProgramService:
         self.db.flush()
 
         program.is_active = True
-        today = local_today(user.timezone)
+        program.starts_on = starts_on or program.starts_on or local_today(user.timezone)
         if program.cycle_state:
             program.cycle_state.current_step = steps[0]
-            program.cycle_state.last_advanced_date = today
+            program.cycle_state.last_advanced_date = program.starts_on
         else:
             program.cycle_state = WorkoutProgramCycleState(
                 program_id=program.id,
                 current_step=steps[0],
-                last_advanced_date=today,
+                last_advanced_date=program.starts_on,
             )
         self.db.commit()
         return self.repository.refresh_graph(program)
@@ -233,13 +264,33 @@ class WorkoutProgramService:
             program.cycle_state = WorkoutProgramCycleState(
                 program_id=program.id,
                 current_step=steps[0],
-                last_advanced_date=today,
+                last_advanced_date=program.starts_on,
             )
             current = steps[0]
         else:
             current = self._current_step(program, steps)
 
         state = program.cycle_state
+        is_started = today >= program.starts_on
+        if not is_started:
+            return DueProgramStep(
+                program=program,
+                step=current,
+                last_advanced_date=state.last_advanced_date,
+                is_started=False,
+            )
+        if (
+            current.step_type == ProgramStepType.REST.value
+            and state.last_advanced_date < today
+            and all(step.step_type == ProgramStepType.REST.value for step in steps)
+        ):
+            elapsed_days = (today - state.last_advanced_date).days
+            current_index = next(
+                index for index, step in enumerate(steps) if step.id == current.id
+            )
+            current = steps[(current_index + elapsed_days) % len(steps)]
+            state.current_step = current
+            state.last_advanced_date = today
         while (
             current.step_type == ProgramStepType.REST.value
             and state.last_advanced_date < today
@@ -252,6 +303,7 @@ class WorkoutProgramService:
             program=program,
             step=current,
             last_advanced_date=state.last_advanced_date,
+            is_started=True,
         )
 
     def get_due(self, user: User) -> DueProgramStep | None:
@@ -260,18 +312,29 @@ class WorkoutProgramService:
         self.db.commit()
         return due
 
-    def advance_after_workout(self, user: User, muscle_groups: set[str]) -> bool:
+    def advance_after_workout(
+        self,
+        user: User,
+        muscle_groups: set[str],
+        *,
+        template_id: uuid.UUID | None = None,
+    ) -> bool:
         """Advance a due workout step without committing the surrounding transaction."""
         due = self._resolve_due(user)
-        if not due or due.step.step_type != ProgramStepType.WORKOUT.value:
+        if (
+            not due
+            or not due.is_started
+            or due.step.step_type != ProgramStepType.WORKOUT.value
+        ):
             return False
 
         required_groups = set(due.step.muscle_groups or [])
-        matches = (
-            due.program.advance_on_any_workout
-            or not required_groups
-            or required_groups.issubset(muscle_groups)
-        )
+        if due.program.advance_on_any_workout:
+            matches = True
+        elif due.step.linked_workout_template_id:
+            matches = due.step.linked_workout_template_id == template_id
+        else:
+            matches = not required_groups or required_groups.issubset(muscle_groups)
         if not matches:
             return False
 
@@ -296,10 +359,13 @@ class WorkoutProgramService:
 
         state = due.program.cycle_state
         state.current_step = target  # type: ignore[union-attr]
-        state.last_advanced_date = local_today(user.timezone)  # type: ignore[union-attr]
+        state.last_advanced_date = max(  # type: ignore[union-attr]
+            local_today(user.timezone), due.program.starts_on
+        )
         self.db.commit()
         return DueProgramStep(
             program=due.program,
             step=target,
             last_advanced_date=state.last_advanced_date,  # type: ignore[union-attr]
+            is_started=local_today(user.timezone) >= due.program.starts_on,
         )

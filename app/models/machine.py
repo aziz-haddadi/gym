@@ -12,6 +12,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.workout import WorkoutEntry
+    from app.models.workout_template import WorkoutTemplateExercise
 
 MUSCLE_GROUP_SQL_VALUES = ", ".join(f"'{value}'" for value in MUSCLE_GROUP_VALUES)
 
@@ -37,3 +38,6 @@ class Machine(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     user: Mapped[User] = relationship(back_populates="machines")
     workout_entries: Mapped[list[WorkoutEntry]] = relationship(back_populates="machine")
+    template_exercises: Mapped[list[WorkoutTemplateExercise]] = relationship(
+        back_populates="machine"
+    )

@@ -23,6 +23,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.workout_template import WorkoutTemplate
 
 
 class WorkoutProgram(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -50,6 +51,7 @@ class WorkoutProgram(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     advance_on_any_workout: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False
     )
+    starts_on: Mapped[date] = mapped_column(Date, nullable=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="programs")
@@ -92,6 +94,15 @@ class WorkoutProgramStep(UUIDPrimaryKeyMixin, Base):
     step_type: Mapped[str] = mapped_column(String(16), nullable=False)
     label: Mapped[str | None] = mapped_column(String(100), nullable=True)
     muscle_groups: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    linked_workout_template_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(
+            "workout_templates.id",
+            ondelete="SET NULL",
+            name="fk_program_steps_linked_template",
+        ),
+        nullable=True,
+        index=True,
+    )
 
     program: Mapped[WorkoutProgram] = relationship(
         back_populates="steps", foreign_keys=[program_id]
@@ -99,6 +110,9 @@ class WorkoutProgramStep(UUIDPrimaryKeyMixin, Base):
     current_for_states: Mapped[list[WorkoutProgramCycleState]] = relationship(
         back_populates="current_step",
         foreign_keys="WorkoutProgramCycleState.current_step_id",
+    )
+    linked_workout_template: Mapped[WorkoutTemplate | None] = relationship(
+        back_populates="program_steps"
     )
 
 

@@ -8,6 +8,7 @@ const state = {
   agendaWorkouts: [],
   machines: [],
   workouts: [],
+  workoutTemplates: [],
   programs: [],
   dueProgram: null,
   stats: null,
@@ -78,11 +79,12 @@ async function initialize() {
 
 async function loadApplication(includeArchived = false) {
   const { dateFrom, dateTo } = agendaMonthRange();
-  const [machines, workoutPage, agendaPage, stats, programs, dueProgram] = await Promise.all([
+  const [machines, workoutPage, agendaPage, stats, workoutTemplates, programs, dueProgram] = await Promise.all([
     api.machines(includeArchived),
     api.workouts(),
     api.workouts({ dateFrom, dateTo }),
     api.stats(),
+    api.workoutTemplates(true),
     api.programs(true),
     api.dueProgramStep(),
   ]);
@@ -90,6 +92,7 @@ async function loadApplication(includeArchived = false) {
   state.workouts = workoutPage.items;
   state.agendaWorkouts = agendaPage.items;
   state.stats = stats;
+  state.workoutTemplates = workoutTemplates;
   state.programs = programs;
   state.dueProgram = dueProgram;
   renderAll();
@@ -113,6 +116,7 @@ function renderAll() {
   renderMetrics();
   renderChart();
   renderRecords();
+  renderWorkoutTemplates();
   renderWorkouts();
   renderAgenda();
   renderPrograms();
@@ -128,6 +132,14 @@ function musclePills(groups = []) {
   return groups.map((group) => `<span>${escapeHtml(group)}</span>`).join("");
 }
 
+function activeWorkoutTemplates() {
+  return state.workoutTemplates.filter((template) => !template.archived_at);
+}
+
+function findWorkoutTemplate(templateId) {
+  return state.workoutTemplates.find((template) => template.id === templateId) || null;
+}
+
 function renderTodayPlan() {
   const due = state.dueProgram;
   if (!due) {
@@ -141,6 +153,19 @@ function renderTodayPlan() {
   }
 
   const step = due.step;
+  if (!due.is_started) {
+    $("#today-plan").innerHTML = `
+      <div class="today-plan-copy">
+        <span class="plan-symbol rest">◷</span>
+        <div>
+          <p class="eyebrow">Program scheduled · ${escapeHtml(due.program_name)}</p>
+          <h2>Starts ${escapeHtml(localDate(due.starts_on))}</h2>
+          <small>First step: ${escapeHtml(dueStepLabel(step))}. Nothing advances before this date.</small>
+        </div>
+      </div>
+      <button class="text-button" data-go-view="programs">Manage</button>`;
+    return;
+  }
   const rest = step.step_type === "rest";
   $("#today-plan").innerHTML = `
     <div class="today-plan-copy">
@@ -148,7 +173,11 @@ function renderTodayPlan() {
       <div>
         <p class="eyebrow">Today's plan · ${escapeHtml(due.program_name)}</p>
         <h2>${escapeHtml(dueStepLabel(step))}</h2>
-        <div class="plan-muscles">${rest ? "<span>Recovery</span>" : musclePills(step.muscle_groups || []) || "<span>Any muscle group</span>"}</div>
+        <div class="plan-muscles">${rest
+          ? "<span>Recovery</span>"
+          : step.linked_workout_template_name
+            ? `<span>Saved workout · ${escapeHtml(step.linked_workout_template_name)}</span>`
+            : musclePills(step.muscle_groups || []) || "<span>Any muscle group</span>"}</div>
       </div>
     </div>
     <div class="today-plan-actions">
@@ -203,6 +232,39 @@ function renderRecords() {
   `).join("");
 }
 
+function workoutTemplateCard(template) {
+  const archived = Boolean(template.archived_at);
+  const exercises = template.exercises.map((exercise, index) => `
+    <li>
+      <b>${String(index + 1).padStart(2, "0")}</b>
+      <strong>${escapeHtml(exercise.machine_name)}</strong>
+      <span>${escapeHtml(exercise.muscle_group)}</span>
+    </li>`).join("");
+  return `<article class="workout-template-card ${archived ? "archived" : ""}">
+    <div class="workout-template-head">
+      <div><p class="eyebrow">${archived ? "Archived workout" : "Reusable workout"}</p><h3>${escapeHtml(template.name)}</h3></div>
+      <span class="workout-template-status">${template.exercises.length} ${template.exercises.length === 1 ? "exercise" : "exercises"}</span>
+    </div>
+    <p class="workout-template-notes">${escapeHtml(template.notes || "Ready to add to your Agenda.")}</p>
+    <ol class="template-exercise-preview">${exercises}</ol>
+    <div class="workout-template-actions">
+      ${archived ? "" : `<button class="button primary compact" data-action="log-workout-template" data-id="${template.id}">Log session</button>`}
+      ${archived ? "" : `<button class="button ghost compact" data-action="edit-workout-template" data-id="${template.id}">Edit</button>`}
+      ${archived ? "" : `<button class="text-button danger-text" data-action="archive-workout-template" data-id="${template.id}">Archive</button>`}
+    </div>
+  </article>`;
+}
+
+function renderWorkoutTemplates() {
+  const templates = [...state.workoutTemplates].sort((left, right) =>
+    Number(Boolean(left.archived_at)) - Number(Boolean(right.archived_at))
+      || left.name.localeCompare(right.name)
+  );
+  $("#workout-template-grid").innerHTML = templates.length
+    ? templates.map(workoutTemplateCard).join("")
+    : `<div class="empty-state"><span>↗</span><h3>No saved workouts yet</h3><p>Build a reusable exercise list once, then record different sets and weights each day.</p><button class="button primary compact" data-action="new-workout-template">Build your first workout</button></div>`;
+}
+
 function workoutCard(workout) {
   const machineNames = workout.entries.map((entry) => entry.machine_name);
   const tags = machineNames.slice(0, 3).map((name) => `<span>${escapeHtml(name)}</span>`).join("");
@@ -211,6 +273,7 @@ function workoutCard(workout) {
     <div class="workout-date-block"><strong>${new Date(`${workout.workout_date}T12:00:00`).getDate()}</strong><span>${new Intl.DateTimeFormat(undefined, { month: "short" }).format(new Date(`${workout.workout_date}T12:00:00`))}</span></div>
     <div class="workout-main">
       <div class="workout-title-line"><h3>${escapeHtml(workout.title)}</h3><time>${localDate(workout.workout_date, { year: undefined, weekday: "short" })}</time></div>
+      ${workout.template_name ? `<small class="session-source">From ${escapeHtml(workout.template_name)} · customized snapshot</small>` : ""}
       <div class="machine-tags">${tags}${extra || (!tags ? "<span>No machines</span>" : "")}</div>
     </div>
     <div class="workout-numbers">
@@ -302,8 +365,11 @@ function renderAgenda() {
     const workouts = workoutsByDate.get(dateValue) || [];
     const weekday = WEEKDAYS[(date.getDay() + 6) % 7];
     const isToday = dateValue === isoToday();
-    const programBadge = isToday && state.dueProgram
-      ? `<div class="calendar-plan-badge ${state.dueProgram.step.step_type === "rest" ? "rest" : ""}"><span>Today's plan</span><strong>${escapeHtml(dueStepLabel(state.dueProgram.step))}</strong></div>`
+    const planDate = state.dueProgram
+      ? state.dueProgram.is_started ? isoToday() : state.dueProgram.starts_on
+      : null;
+    const programBadge = dateValue === planDate && state.dueProgram
+      ? `<div class="calendar-plan-badge ${state.dueProgram.step.step_type === "rest" ? "rest" : ""}"><span>${state.dueProgram.is_started ? "Today's plan" : "Program starts"}</span><strong>${escapeHtml(dueStepLabel(state.dueProgram.step))}</strong></div>`
       : "";
     const startStyle = day === 1 ? ` style="--calendar-start:${firstWeekday + 1}"` : "";
     return `<article class="calendar-day ${workouts.length ? "has-workouts" : ""} ${isToday ? "today" : ""}"${startStyle}>
@@ -328,21 +394,24 @@ function renderAgenda() {
 function programCard(program) {
   const archived = Boolean(program.archived_at);
   const currentStepId = program.cycle_state?.current_step_id;
+  const programStarted = !program.is_active
+    || state.dueProgram?.program_id !== program.id
+    || state.dueProgram.is_started;
   const steps = program.steps.map((step) => `
     <li class="program-cycle-step ${step.id === currentStepId && program.is_active ? "due" : ""}">
       <span class="cycle-position">${String(step.position + 1).padStart(2, "0")}</span>
       <span class="cycle-type">${step.step_type === "rest" ? "○" : "↗"}</span>
-      <div><strong>${escapeHtml(dueStepLabel(step))}</strong><small>${step.step_type === "rest" ? "Rest" : (step.muscle_groups || []).join(" · ") || "Any muscle"}</small></div>
-      ${program.is_active && step.id !== currentStepId
+      <div><strong>${escapeHtml(dueStepLabel(step))}</strong><small>${step.step_type === "rest" ? "Rest" : step.linked_workout_template_name ? `Saved · ${escapeHtml(step.linked_workout_template_name)}` : (step.muscle_groups || []).join(" · ") || "Any muscle"}</small></div>
+      ${program.is_active && programStarted && step.id !== currentStepId
         ? `<button class="text-button" data-action="jump-program-step" data-id="${step.id}">Jump here</button>`
-        : step.id === currentStepId && program.is_active ? "<b>Due</b>" : ""}
+        : step.id === currentStepId && program.is_active ? `<b>${programStarted ? "Due" : "First"}</b>` : ""}
     </li>`).join("");
   return `<article class="program-card ${program.is_active ? "active" : ""} ${archived ? "archived" : ""}">
     <div class="program-card-head">
       <div><p class="eyebrow">${archived ? "Archived program" : program.is_active ? "Active program" : "Saved program"}</p><h2>${escapeHtml(program.name)}</h2></div>
-      <span class="program-status">${program.is_active ? "In rotation" : archived ? "Archived" : `${program.steps.length} steps`}</span>
+      <span class="program-status">${program.is_active ? programStarted ? "In rotation" : "Scheduled" : archived ? "Archived" : `${program.steps.length} steps`}</span>
     </div>
-    <p class="program-rule">${program.advance_on_any_workout ? "Any logged workout advances a workout step." : "Every planned muscle group must be logged to advance."}</p>
+    <p class="program-rule"><strong>Starts ${escapeHtml(localDate(program.starts_on))}.</strong> ${program.advance_on_any_workout ? "Any logged session advances a workout step." : "A linked saved workout must match; otherwise every planned muscle group must be logged."}</p>
     <ol class="program-cycle">${steps}</ol>
     <div class="program-card-actions">
       ${archived ? "" : `<button class="button secondary compact" data-action="edit-program" data-id="${program.id}">Edit</button>`}
@@ -364,6 +433,17 @@ function programMuscleChoices(selected = []) {
   `).join("");
 }
 
+function programTemplateOptions(selectedId = "") {
+  const selectedTemplate = findWorkoutTemplate(selectedId);
+  const templates = activeWorkoutTemplates();
+  if (selectedTemplate?.archived_at && !templates.some((item) => item.id === selectedId)) {
+    templates.push(selectedTemplate);
+  }
+  return `<option value="">No linked saved workout</option>${templates.map((template) =>
+    `<option value="${template.id}" ${template.id === selectedId ? "selected" : ""}>${escapeHtml(template.name)}${template.archived_at ? " · archived" : ""}</option>`
+  ).join("")}`;
+}
+
 function programStepRow(step = { step_type: "workout" }) {
   const rest = step.step_type === "rest";
   return `<article class="program-step-row ${rest ? "rest" : ""}" draggable="true" data-id="${step.id || ""}">
@@ -373,6 +453,7 @@ function programStepRow(step = { step_type: "workout" }) {
         <label>Type<select class="program-step-type"><option value="workout" ${rest ? "" : "selected"}>Workout</option><option value="rest" ${rest ? "selected" : ""}>Rest</option></select></label>
         <label>Label<input class="program-step-label" maxlength="100" value="${escapeHtml(step.label || "")}" placeholder="${rest ? "Recovery day" : "Chest + Back"}" ${rest ? "" : "required"}></label>
       </div>
+      <label class="program-step-template">Saved workout (optional)<select>${programTemplateOptions(step.linked_workout_template_id || "")}</select></label>
       <div class="program-step-muscles"><span>Planned muscles (optional)</span><div>${programMuscleChoices(step.muscle_groups || [])}</div></div>
     </div>
     <div class="program-step-actions">
@@ -395,6 +476,7 @@ function syncProgramStepRow(row) {
   const label = $(".program-step-label", row);
   label.required = !rest;
   label.placeholder = rest ? "Recovery day" : "Chest + Back";
+  $(".program-step-template select", row).disabled = rest;
   $$(".program-step-muscles input", row).forEach((input) => { input.disabled = rest; });
 }
 
@@ -411,6 +493,7 @@ function openProgramDialog(program = null) {
   form.dataset.id = program?.id || "";
   $("#program-modal-title").textContent = program ? "Edit program" : "New program";
   $("#program-name").value = program?.name || "";
+  $("#program-start-date").value = program?.starts_on || isoToday();
   $("#program-advance-any").checked = program?.advance_on_any_workout ?? true;
   $("#program-step-list").innerHTML = "";
   const steps = program?.steps?.length ? program.steps : [
@@ -430,6 +513,9 @@ function collectProgramSteps() {
       label: $(".program-step-label", row).value.trim() || null,
       muscle_groups: stepType === "workout"
         ? $$(".program-step-muscles input:checked", row).map((input) => input.value)
+        : null,
+      linked_workout_template_id: stepType === "workout"
+        ? $(".program-step-template select", row).value || null
         : null,
     };
   });
@@ -511,6 +597,91 @@ function openMachineDialog(machine = null) {
   dialog.showModal();
 }
 
+function renumberTemplateExercises() {
+  $$(".template-exercise-row", $("#workout-template-exercise-list")).forEach((row, index) => {
+    $(".template-exercise-number", row).textContent = String(index + 1).padStart(2, "0");
+  });
+}
+
+function templateExerciseRow(exercise = {}) {
+  const selectedMachine = state.machines.find((machine) => machine.id === exercise.machine_id);
+  const selectedGroup = exercise.muscle_group || selectedMachine?.muscle_group || defaultMuscleGroup();
+  return `<article class="template-exercise-row" draggable="true" data-id="${exercise.id || ""}">
+    <div class="template-exercise-order"><span class="drag-handle" title="Drag to reorder">⠿</span><b class="template-exercise-number"></b></div>
+    <div class="template-exercise-fields">
+      <label>Muscle<select class="template-exercise-muscle" required>${muscleOptions(selectedGroup)}</select></label>
+      <label>Exercise<select class="template-exercise-machine" required>${machineOptions(selectedGroup, exercise.machine_id)}</select></label>
+      <label>Notes<input class="template-exercise-notes" maxlength="1000" value="${escapeHtml(exercise.notes || "")}" placeholder="Optional cues"></label>
+    </div>
+    <div class="template-exercise-actions">
+      <button class="icon-button" type="button" data-action="move-template-exercise-up" aria-label="Move exercise up">↑</button>
+      <button class="icon-button" type="button" data-action="move-template-exercise-down" aria-label="Move exercise down">↓</button>
+      <button class="icon-button danger" type="button" data-action="remove-template-exercise" aria-label="Remove exercise">×</button>
+    </div>
+  </article>`;
+}
+
+function appendTemplateExercise(exercise = {}) {
+  $("#workout-template-exercise-list").insertAdjacentHTML("beforeend", templateExerciseRow(exercise));
+  renumberTemplateExercises();
+}
+
+function openWorkoutTemplateDialog(template = null) {
+  if (!state.machines.some((machine) => machine.active)) {
+    showToast("Add your first exercise before building a workout", "notice");
+    openMachineDialog();
+    return;
+  }
+  const form = $("#workout-template-form");
+  form.reset();
+  form.dataset.id = template?.id || "";
+  $("#workout-template-modal-title").textContent = template ? "Edit workout" : "Build workout";
+  $("#workout-template-name").value = template?.name || "";
+  $("#workout-template-notes").value = template?.notes || "";
+  $("#workout-template-exercise-list").innerHTML = "";
+  (template?.exercises?.length ? template.exercises : [{}]).forEach(appendTemplateExercise);
+  $("#workout-template-dialog").showModal();
+}
+
+function collectWorkoutTemplateExercises() {
+  return $$(".template-exercise-row", $("#workout-template-exercise-list")).map((row) => ({
+    ...(row.dataset.id ? { id: row.dataset.id } : {}),
+    machine_id: $(".template-exercise-machine", row).value,
+    notes: $(".template-exercise-notes", row).value.trim() || null,
+  }));
+}
+
+function pickerExerciseSummary(template) {
+  const names = template.exercises.map((exercise) => exercise.machine_name);
+  return names.slice(0, 3).join(" · ") + (names.length > 3 ? ` · +${names.length - 3}` : "");
+}
+
+function openWorkoutPicker(workoutDate = null) {
+  const selectedDate = workoutDate || isoToday();
+  const due = state.dueProgram;
+  const dueTemplate = selectedDate === isoToday() && due?.is_started
+    && due.step.step_type === "workout"
+    ? findWorkoutTemplate(due.step.linked_workout_template_id)
+    : null;
+  if (dueTemplate && !dueTemplate.archived_at) {
+    openWorkoutDialog(null, { workoutDate: selectedDate, template: dueTemplate });
+    return;
+  }
+
+  const templates = activeWorkoutTemplates();
+  const dialog = $("#workout-picker-dialog");
+  dialog.dataset.workoutDate = selectedDate;
+  $("#workout-picker-date").textContent = localDate(selectedDate, { weekday: "long" });
+  $("#workout-picker-list").innerHTML = `
+    ${templates.map((template) => `<button class="workout-picker-option" type="button" data-action="select-workout-template" data-id="${template.id}">
+      <span>↗</span><div><strong>${escapeHtml(template.name)}</strong><small>${escapeHtml(pickerExerciseSummary(template))}</small></div><b>→</b>
+    </button>`).join("")}
+    <button class="workout-picker-option" type="button" data-action="select-blank-workout">
+      <span>＋</span><div><strong>Blank / custom session</strong><small>Start empty and choose today's exercises manually.</small></div><b>→</b>
+    </button>`;
+  dialog.showModal();
+}
+
 function defaultMuscleGroup() {
   return state.machines.find((machine) => machine.active)?.muscle_group || MUSCLE_GROUPS[0];
 }
@@ -518,7 +689,7 @@ function defaultMuscleGroup() {
 function dueMuscleGroup(workoutDate = null) {
   const due = state.dueProgram;
   const isToday = !workoutDate || workoutDate === isoToday();
-  if (!isToday || due?.step.step_type !== "workout") return null;
+  if (!isToday || !due?.is_started || due.step.step_type !== "workout") return null;
   return (due.step.muscle_groups || []).find((group) =>
     state.machines.some((machine) => machine.active && machine.muscle_group === group)
   ) || null;
@@ -578,7 +749,10 @@ function renumberSets(root = document) {
   });
 }
 
-function openWorkoutDialog(workout = null, { repeat = false, workoutDate = null } = {}) {
+function openWorkoutDialog(
+  workout = null,
+  { repeat = false, workoutDate = null, template = null } = {},
+) {
   if (!state.machines.some((machine) => machine.active)) {
     showToast("Add your first machine before logging a workout", "notice");
     openMachineDialog();
@@ -588,23 +762,36 @@ function openWorkoutDialog(workout = null, { repeat = false, workoutDate = null 
   form.reset();
   form.dataset.id = repeat ? "" : workout?.id || "";
   form.dataset.mode = repeat ? "repeat" : workout ? "edit" : "create";
+  const historicalTemplate = workout?.template_id ? findWorkoutTemplate(workout.template_id) : null;
+  const sourceTemplate = template
+    || (repeat && historicalTemplate && !historicalTemplate.archived_at ? historicalTemplate : null);
+  form.dataset.templateId = sourceTemplate?.id || "";
   $("#workout-modal-title").textContent = repeat ? "Repeat workout" : workout ? "Edit workout" : "Log workout";
   const useDuePlan = !workout && !repeat && (!workoutDate || workoutDate === isoToday())
-    && state.dueProgram?.step.step_type === "workout";
+    && state.dueProgram?.is_started && state.dueProgram.step.step_type === "workout";
   const plannedGroup = useDuePlan ? dueMuscleGroup(workoutDate) : null;
   const hint = $("#workout-plan-hint");
-  hint.classList.toggle("hidden", !useDuePlan);
-  hint.innerHTML = useDuePlan
-    ? `<strong>Due now:</strong> ${escapeHtml(dueStepLabel(state.dueProgram.step))}${plannedGroup ? ` · ${escapeHtml(plannedGroup)} preselected` : ""}`
-    : "";
+  const sourceForDisplay = sourceTemplate || historicalTemplate;
+  hint.classList.toggle("hidden", !useDuePlan && !sourceForDisplay);
+  hint.innerHTML = [
+    useDuePlan ? `<strong>Due now:</strong> ${escapeHtml(dueStepLabel(state.dueProgram.step))}${plannedGroup ? ` · ${escapeHtml(plannedGroup)} preselected` : ""}` : "",
+    sourceForDisplay ? `<strong>Started from ${escapeHtml(sourceForDisplay.name)}.</strong> Changes here affect only this dated session.` : "",
+  ].filter(Boolean).join("<br>");
   $("#workout-date").value = repeat
     ? isoToday()
     : workout?.workout_date || workoutDate || isoToday();
-  $("#workout-title").value = workout?.title || (useDuePlan ? dueStepLabel(state.dueProgram.step) : "Workout");
+  $("#workout-title").value = workout?.title || sourceTemplate?.name || (useDuePlan ? dueStepLabel(state.dueProgram.step) : "Workout");
   $("#workout-duration").value = workout?.duration_minutes || "";
   $("#workout-notes").value = workout?.notes || "";
-  $("#entry-list").innerHTML = workout?.entries?.length
-    ? workout.entries.map(entryRow).join("")
+  const sourceEntries = workout?.entries?.length
+    ? workout.entries
+    : sourceTemplate?.exercises?.map((exercise) => ({
+        machine_id: exercise.machine_id,
+        muscle_group: exercise.muscle_group,
+        notes: exercise.notes,
+      }));
+  $("#entry-list").innerHTML = sourceEntries?.length
+    ? sourceEntries.map(entryRow).join("")
     : entryRow(plannedGroup ? { muscle_group: plannedGroup } : {});
   renumberSets($("#entry-list"));
   $("#workout-dialog").showModal();
@@ -612,6 +799,9 @@ function openWorkoutDialog(workout = null, { repeat = false, workoutDate = null 
 
 function collectWorkout() {
   return {
+    ...($("#workout-form").dataset.templateId
+      ? { template_id: $("#workout-form").dataset.templateId }
+      : {}),
     workout_date: $("#workout-date").value,
     title: $("#workout-title").value.trim(),
     duration_minutes: $("#workout-duration").value ? Number($("#workout-duration").value) : null,
@@ -656,6 +846,41 @@ $("#machine-form").addEventListener("submit", async (event) => {
   }
 });
 
+$("#workout-template-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!form.reportValidity()) return;
+  const exercises = collectWorkoutTemplateExercises();
+  if (!exercises.length) {
+    showToast("A saved workout needs at least one exercise", "error");
+    return;
+  }
+  const machineIds = exercises.map((exercise) => exercise.machine_id);
+  if (new Set(machineIds).size !== machineIds.length) {
+    showToast("Each exercise can appear only once in a saved workout", "error");
+    return;
+  }
+  setBusy(form, true);
+  const metadata = {
+    name: $("#workout-template-name").value.trim(),
+    notes: $("#workout-template-notes").value.trim() || null,
+  };
+  try {
+    if (form.dataset.id) {
+      await api.updateWorkoutTemplate(form.dataset.id, metadata);
+      await api.updateWorkoutTemplateExercises(form.dataset.id, exercises);
+    } else {
+      await api.createWorkoutTemplate({ ...metadata, exercises });
+    }
+    $("#workout-template-dialog").close();
+    await refreshAfterMutation(form.dataset.id ? "Saved workout updated" : "Saved workout created");
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    setBusy(form, false);
+  }
+});
+
 $("#workout-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -690,6 +915,7 @@ $("#program-form").addEventListener("submit", async (event) => {
   const metadata = {
     name: $("#program-name").value.trim(),
     advance_on_any_workout: $("#program-advance-any").checked,
+    starts_on: $("#program-start-date").value,
   };
   try {
     if (form.dataset.id) {
@@ -713,12 +939,55 @@ document.addEventListener("click", async (event) => {
 
   if (button.dataset.view) navigate(button.dataset.view);
   if (button.dataset.goView) navigate(button.dataset.goView);
-  if (button.matches(".js-new-workout")) openWorkoutDialog();
+  if (button.matches(".js-new-workout")) openWorkoutPicker();
+  if (button.id === "new-workout-template-button" || button.dataset.action === "new-workout-template") openWorkoutTemplateDialog();
   if (button.id === "new-machine-button") openMachineDialog();
   if (button.id === "new-program-button") openProgramDialog();
   if (button.dataset.closeDialog) $(`#${button.dataset.closeDialog}`).close();
 
   const { action, id } = button.dataset;
+  if (action === "select-workout-template") {
+    const picker = $("#workout-picker-dialog");
+    const workoutDate = picker.dataset.workoutDate || isoToday();
+    picker.close();
+    openWorkoutDialog(null, { workoutDate, template: findWorkoutTemplate(id) });
+  }
+  if (action === "select-blank-workout") {
+    const picker = $("#workout-picker-dialog");
+    const workoutDate = picker.dataset.workoutDate || isoToday();
+    picker.close();
+    openWorkoutDialog(null, { workoutDate });
+  }
+  if (action === "log-workout-template") {
+    openWorkoutDialog(null, { workoutDate: isoToday(), template: findWorkoutTemplate(id) });
+  }
+  if (action === "edit-workout-template") {
+    openWorkoutTemplateDialog(findWorkoutTemplate(id));
+  }
+  if (action === "archive-workout-template") {
+    if (!window.confirm("Archive this saved workout? Logged session snapshots will stay intact.")) return;
+    try {
+      await api.archiveWorkoutTemplate(id);
+      await refreshAfterMutation("Saved workout archived");
+    } catch (error) { showToast(error.message, "error"); }
+  }
+  if (action === "remove-template-exercise") {
+    const rows = $$(".template-exercise-row", $("#workout-template-exercise-list"));
+    if (rows.length === 1) showToast("A saved workout needs at least one exercise", "notice");
+    else {
+      button.closest(".template-exercise-row").remove();
+      renumberTemplateExercises();
+    }
+  }
+  if (action === "move-template-exercise-up" || action === "move-template-exercise-down") {
+    const row = button.closest(".template-exercise-row");
+    const sibling = action.endsWith("up") ? row.previousElementSibling : row.nextElementSibling;
+    if (sibling) {
+      if (action.endsWith("up")) sibling.before(row);
+      else sibling.after(row);
+      renumberTemplateExercises();
+    }
+  }
   if (action === "add-program-workout") appendProgramStep({ step_type: "workout", label: "Workout" });
   if (action === "add-program-rest") appendProgramStep({ step_type: "rest", label: "Rest day" });
   if (action === "remove-program-step") {
@@ -742,10 +1011,12 @@ document.addEventListener("click", async (event) => {
     openProgramDialog(state.programs.find((program) => program.id === id));
   }
   if (action === "activate-program") {
-    if (!window.confirm("Set this program active? Its cycle will restart at step 1.")) return;
+    const program = state.programs.find((item) => item.id === id);
+    if (!program) return;
+    if (!window.confirm(`Set this program active from ${localDate(program.starts_on)}? Its cycle will restart at step 1.`)) return;
     try {
-      await api.activateProgram(id);
-      await refreshAfterMutation("Program activated at step 1");
+      await api.activateProgram(id, program.starts_on);
+      await refreshAfterMutation(`Program activated from ${localDate(program.starts_on)}`);
     } catch (error) { showToast(error.message, "error"); }
   }
   if (action === "archive-program") {
@@ -777,7 +1048,7 @@ document.addEventListener("click", async (event) => {
   if (action === "previous-month") await moveAgendaMonth(-1);
   if (action === "next-month") await moveAgendaMonth(1);
   if (action === "log-calendar-day") {
-    openWorkoutDialog(null, { workoutDate: button.dataset.date });
+    openWorkoutPicker(button.dataset.date);
   }
   if (action === "add-set") {
     $(".sets-list", button.closest(".entry-card")).insertAdjacentHTML("beforeend", setRow());
@@ -821,14 +1092,30 @@ document.addEventListener("change", (event) => {
     const entry = event.target.closest(".entry-card");
     $(".entry-machine", entry).innerHTML = machineOptions(event.target.value);
   }
+  if (event.target.matches(".template-exercise-muscle")) {
+    const row = event.target.closest(".template-exercise-row");
+    $(".template-exercise-machine", row).innerHTML = machineOptions(event.target.value);
+  }
   if (event.target.matches(".program-step-type")) {
     syncProgramStepRow(event.target.closest(".program-step-row"));
+  }
+  if (event.target.matches(".program-step-template select")) {
+    const row = event.target.closest(".program-step-row");
+    const template = findWorkoutTemplate(event.target.value);
+    const label = $(".program-step-label", row);
+    if (template && (!label.value.trim() || label.value.trim() === "Workout")) {
+      label.value = template.name;
+    }
   }
 });
 
 $("#add-exercise-button").addEventListener("click", () => {
   $("#entry-list").insertAdjacentHTML("beforeend", entryRow());
   renumberSets($("#entry-list"));
+});
+
+$("#add-template-exercise-button").addEventListener("click", () => {
+  appendTemplateExercise();
 });
 
 $("#show-archived").addEventListener("change", async (event) => {
@@ -864,6 +1151,34 @@ $("#program-step-list").addEventListener("dragend", () => {
   draggedProgramStep?.classList.remove("dragging");
   draggedProgramStep = null;
   renumberProgramSteps();
+});
+
+let draggedTemplateExercise = null;
+$("#workout-template-exercise-list").addEventListener("dragstart", (event) => {
+  draggedTemplateExercise = event.target.closest(".template-exercise-row");
+  if (!draggedTemplateExercise) return;
+  draggedTemplateExercise.classList.add("dragging");
+  event.dataTransfer.effectAllowed = "move";
+});
+
+$("#workout-template-exercise-list").addEventListener("dragover", (event) => {
+  if (!draggedTemplateExercise) return;
+  event.preventDefault();
+  const rows = $$(".template-exercise-row:not(.dragging)", $("#workout-template-exercise-list"));
+  const next = rows.find((row) => event.clientY < row.getBoundingClientRect().top + row.offsetHeight / 2);
+  if (next) $("#workout-template-exercise-list").insertBefore(draggedTemplateExercise, next);
+  else $("#workout-template-exercise-list").append(draggedTemplateExercise);
+});
+
+$("#workout-template-exercise-list").addEventListener("drop", (event) => {
+  event.preventDefault();
+  renumberTemplateExercises();
+});
+
+$("#workout-template-exercise-list").addEventListener("dragend", () => {
+  draggedTemplateExercise?.classList.remove("dragging");
+  draggedTemplateExercise = null;
+  renumberTemplateExercises();
 });
 
 $$('dialog').forEach((dialog) => dialog.addEventListener("click", (event) => {

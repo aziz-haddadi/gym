@@ -103,10 +103,20 @@
 
         <section id="view-workouts" class="view">
           <div class="page-heading">
-            <div><p class="eyebrow">Training history</p><h1>Workouts</h1><p class="page-subtitle">Every session, set, rep, and kilogram.</p></div>
-            <button class="button primary js-new-workout"><span>+</span> Log workout</button>
+            <div><p class="eyebrow">Reusable training plans</p><h1>Workouts</h1><p class="page-subtitle">Build each workout once, then choose it from the Agenda and record that day's performance.</p></div>
+            <div class="page-heading-actions">
+              <button id="new-workout-template-button" class="button primary"><span>+</span> Build workout</button>
+              <button class="button secondary js-new-workout">Log session</button>
+            </div>
           </div>
-          <div id="all-workouts" class="workout-list roomy"></div>
+          <section>
+            <div class="section-heading"><div><p class="eyebrow">Workout library</p><h2>Saved workouts</h2></div><small class="section-note">Exercises only — sets and weights are entered per session.</small></div>
+            <div id="workout-template-grid" class="workout-template-grid" aria-live="polite"></div>
+          </section>
+          <section class="section-block">
+            <div class="section-heading"><div><p class="eyebrow">Training history</p><h2>Logged sessions</h2></div></div>
+            <div id="all-workouts" class="workout-list roomy"></div>
+          </section>
         </section>
 
         <section id="view-programs" class="view">
@@ -164,6 +174,39 @@
       </form>
     </dialog>
 
+    <dialog id="workout-picker-dialog" class="modal picker-modal">
+      <form method="dialog">
+        <div class="modal-head">
+          <div><p class="eyebrow">Add to Agenda</p><h2>Choose a workout</h2><small id="workout-picker-date" class="modal-subtitle"></small></div>
+          <button class="close-button" type="button" data-close-dialog="workout-picker-dialog" aria-label="Close">×</button>
+        </div>
+        <p class="picker-help">The workout's exercises will be copied into this session. You can replace, remove, or add exercises before saving without changing the saved workout.</p>
+        <div id="workout-picker-list" class="workout-picker-list"></div>
+      </form>
+    </dialog>
+
+    <dialog id="workout-template-dialog" class="modal program-modal">
+      <form id="workout-template-form" method="dialog">
+        <div class="modal-head">
+          <div><p class="eyebrow">Reusable workout</p><h2 id="workout-template-modal-title">Build workout</h2></div>
+          <button class="close-button" type="button" data-close-dialog="workout-template-dialog" aria-label="Close">×</button>
+        </div>
+        <div class="form-grid two">
+          <label>Workout name<input id="workout-template-name" required maxlength="100" placeholder="Push day"></label>
+          <label>Notes<input id="workout-template-notes" maxlength="5000" placeholder="Optional focus or setup notes"></label>
+        </div>
+        <div class="exercise-heading">
+          <div><p class="eyebrow">Exercise order</p><h3>Choose movements, not sets</h3><small>Weights and reps belong to each dated session.</small></div>
+          <button id="add-template-exercise-button" class="button secondary compact" type="button">+ Add exercise</button>
+        </div>
+        <div id="workout-template-exercise-list" class="template-exercise-list"></div>
+        <div class="modal-actions">
+          <button class="button ghost" type="button" data-close-dialog="workout-template-dialog">Cancel</button>
+          <button class="button primary" type="submit">Save workout</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="program-dialog" class="modal program-modal">
       <form id="program-form" method="dialog">
         <div class="modal-head">
@@ -172,6 +215,7 @@
         </div>
         <div class="program-form-top">
           <label>Program name<input id="program-name" name="name" required maxlength="100" placeholder="My training split"></label>
+          <label>Start date<input id="program-start-date" name="starts_on" type="date" required></label>
           <label class="setting-check">
             <input id="program-advance-any" type="checkbox" checked>
             <span><strong>Any workout advances</strong><small>Turn off to require every planned muscle group in the logged workout.</small></span>

@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.program import WorkoutProgram, WorkoutProgramCycleState
+from app.models.program import WorkoutProgram, WorkoutProgramCycleState, WorkoutProgramStep
 
 
 class WorkoutProgramRepository:
@@ -15,7 +15,9 @@ class WorkoutProgramRepository:
     @staticmethod
     def _with_graph(query: Select) -> Select:
         return query.options(
-            selectinload(WorkoutProgram.steps),
+            selectinload(WorkoutProgram.steps).selectinload(
+                WorkoutProgramStep.linked_workout_template
+            ),
             selectinload(WorkoutProgram.cycle_state).selectinload(
                 WorkoutProgramCycleState.current_step
             ),

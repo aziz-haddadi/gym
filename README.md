@@ -2,9 +2,10 @@
 
 A private, self-hosted workout tracker for `gym.pulgaa.xyz`. It records machines,
 workout days, a date-driven calendar agenda, regular and drop sets, fractional
-weights, reps, RPE, notes, volume, personal records, and daily streaks. Saved workouts
-can be repeated as new sessions without entering the full day again. Rotating workout
-programs keep the next workout or rest step due without forcing a weekday schedule.
+weights, reps, RPE, notes, volume, personal records, and daily streaks. Reusable
+workouts define an exercise order once; each dated session records that day's actual
+exercise choices and performance. Rotating workout programs keep the next workout or
+rest step due without forcing a weekday schedule.
 
 ## Architecture
 
@@ -45,14 +46,15 @@ authentication remains available for automated tests and API development by sett
    only the trusted `X-Gym-User: pulgaa` identity header.
 4. FastAPI maps that identity to the bootstrapped account and serves the static web
    interface. The app port cannot be reached remotely because it is bound to loopback.
-5. Browser JavaScript calls same-origin `/api` endpoints for date-filtered workouts,
-   machines, programs, the due cycle step, and statistics. There are no third-party
-   browser APIs or CDN dependencies.
+5. Browser JavaScript calls same-origin `/api` endpoints for reusable workouts,
+   date-filtered sessions, machines, programs, the due cycle step, and statistics.
+   There are no third-party browser APIs or CDN dependencies.
 6. API routes validate transport data, services enforce ownership and business rules,
    repositories isolate persistence queries, and SQLAlchemy writes to PostgreSQL.
-7. A workout is stored as one workout row, ordered muscle-filtered machine entries,
-   and their regular or drop sets. The write is transactional: failed validation does
-   not leave a partial workout.
+7. A reusable workout stores only its ordered exercises and optional notes. Logging it
+   creates a dated session snapshot with that day's actual exercises, regular/drop
+   sets, weights, reps, and RPE. The write is transactional: failed validation does
+   not leave a partial session.
 8. Statistics aggregate the saved workout graph into volume, total sets/reps, weekly
    trends, machine personal records, and current/longest calendar-day streaks.
 9. PostgreSQL accepts connections only from the internal Docker network. Its files
@@ -63,12 +65,28 @@ Container startup is ordered: PostgreSQL must pass `pg_isready`, the one-shot Al
 migration service must exit successfully, and only then does the web application
 start. Rebuilding the application does not recreate or delete the named data volume.
 
-Workout cards include a repeat action. It opens the saved session with today's date
-and copies its machines, fractional weights, reps, RPE values, notes, duration, and
-drop-set markers. Saving creates a new workout; the original remains unchanged.
+Historical session cards still include a repeat action. It copies the historical
+session, including its recorded sets, into today while leaving the original unchanged.
 
-The Agenda is a monthly calendar backed directly by saved workouts—there is no second
-calendar copy of workout data. Each workout appears automatically on its saved date;
+## Reusable workouts and dated sessions
+
+The Workouts page has two deliberately separate layers:
+
+- **Saved workouts** contain a name and ordered exercise list only. They never contain
+  weights, reps, RPE, or drop-set values.
+- **Logged sessions** belong to an Agenda date and store exactly what happened that
+  day, including fractional weights such as `27.5`, sets, reps, RPE, and drop sets.
+
+Choosing Log session or a day in Agenda first offers the saved workout library. Its
+exercise list is copied into the session form with blank performance fields. Before
+saving, any exercise can be replaced, removed, reordered, or supplemented for that
+one day. Those edits affect only the dated snapshot; the saved workout remains
+unchanged. Editing the saved workout separately affects future copies only and never
+rewrites history. Archived saved workouts remain available as historical provenance
+but cannot be used to start new sessions.
+
+The Agenda is a monthly calendar backed directly by logged sessions—there is no second
+calendar copy of session data. Each session appears automatically on its saved date;
 month navigation requests only that month's date range. Selecting a workout opens it
 for editing, and selecting a day's plus action opens a new workout with that date
 prefilled. On small screens the month becomes a readable vertical day agenda. Machine
@@ -85,9 +103,15 @@ but it is not tied to weekdays and can contain any number or order of steps.
   Reordering or inserting other steps therefore does not silently change what is due.
 - A workout step waits indefinitely until a workout is actually logged. Vacations and
   missed training days never move the pointer.
-- Logging a workout advances the due workout step in the same database transaction as
-  the new workout. By default any workout advances; a per-program option can instead
-  require the logged exercises to cover every muscle group selected on the step.
+- Each program has a chosen start date. Before that date its first step is shown as
+  scheduled and logging unrelated sessions cannot advance it. Activating or changing
+  the start date resets the selected program to step one.
+- A workout step can optionally link to a reusable workout. Opening that due step
+  copies the linked exercises directly into the session form; they may still be
+  changed for that day.
+- Logging a session advances the due workout step in the same database transaction as
+  the new session. By default any session advances; strict mode requires the linked
+  reusable workout identity when present, otherwise every selected muscle group.
 - A rest step becomes due immediately and advances only after a calendar day has
   elapsed in the user's timezone. Consecutive elapsed rest steps resolve lazily when
   the due state is read, so no cron job or background worker is required.
@@ -98,12 +122,10 @@ but it is not tied to weekdays and can contain any number or order of steps.
   non-archived program can be active per user, enforced by PostgreSQL as well as the
   service transaction.
 
-The Overview shows the current plan, today's Agenda cell carries the same badge, and
-a fresh workout preselects the first available planned muscle group without locking
-the selector. The Programs editor supports drag reordering on desktop and arrow
-controls on touch screens. There is currently no separate workout-template table, so
-program steps intentionally do not store a template foreign key; the existing Repeat
-action continues to copy a historical workout into a new session.
+The Overview shows the current plan, and Agenda shows it on today or on the configured
+future start date. A fresh custom session preselects the first available planned
+muscle group without locking the selector. The Programs editor supports linked saved
+workouts, drag reordering on desktop, and arrow controls on touch screens.
 
 ## VPS deployment
 
@@ -252,7 +274,7 @@ Python 3.12 and 3.13; tests use an isolated in-memory SQLite database:
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-pip install -r requirements-dev.txt
+pip install -r requirements-test.txt
 pytest
 ruff check .
 ```

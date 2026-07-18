@@ -16,6 +16,7 @@ class WorkoutRepository:
     @staticmethod
     def _with_graph(query: Select) -> Select:
         return query.options(
+            selectinload(Workout.template),
             selectinload(Workout.entries).selectinload(WorkoutEntry.machine),
             selectinload(Workout.entries).selectinload(WorkoutEntry.sets),
         )

@@ -4,6 +4,7 @@ from app.models.program import WorkoutProgram, WorkoutProgramCycleState, Workout
 from app.models.session import AuthSession
 from app.models.user import User
 from app.models.workout import Workout, WorkoutEntry, WorkoutSet
+from app.models.workout_template import WorkoutTemplate, WorkoutTemplateExercise
 
 __all__ = [
     "AuthSession",
@@ -16,4 +17,6 @@ __all__ = [
     "Workout",
     "WorkoutEntry",
     "WorkoutSet",
+    "WorkoutTemplate",
+    "WorkoutTemplateExercise",
 ]

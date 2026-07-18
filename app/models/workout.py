@@ -23,6 +23,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.machine import Machine
     from app.models.user import User
+    from app.models.workout_template import WorkoutTemplate
 
 
 class Workout(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -32,12 +33,20 @@ class Workout(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(
+            "workout_templates.id", ondelete="SET NULL", name="fk_workouts_template"
+        ),
+        nullable=True,
+        index=True,
+    )
     workout_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(100), default="Workout", nullable=False)
     duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="workouts")
+    template: Mapped[WorkoutTemplate | None] = relationship(back_populates="logged_workouts")
     entries: Mapped[list[WorkoutEntry]] = relationship(
         back_populates="workout",
         cascade="all, delete-orphan",
