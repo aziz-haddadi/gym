@@ -132,6 +132,7 @@ class WorkoutProgramCycleState(TimestampMixin, Base):
         index=True,
     )
     last_advanced_date: Mapped[date] = mapped_column(Date, nullable=False)
+    due_date: Mapped[date] = mapped_column(Date, nullable=False)
 
     program: Mapped[WorkoutProgram] = relationship(
         back_populates="cycle_state", foreign_keys=[program_id]

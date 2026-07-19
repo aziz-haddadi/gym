@@ -135,6 +135,7 @@ class ProgramCycleStateRead(BaseModel):
     current_step_id: uuid.UUID
     current_position: int
     last_advanced_date: date
+    due_date: date
 
 
 class ProgramRead(BaseModel):
@@ -169,6 +170,7 @@ class ProgramRead(BaseModel):
                     current_step_id=state.current_step_id,
                     current_position=position_by_id.get(state.current_step_id, 0),
                     last_advanced_date=state.last_advanced_date,
+                    due_date=state.due_date,
                 )
                 if state
                 else None
@@ -182,8 +184,10 @@ class ProgramDueRead(BaseModel):
     advance_on_any_workout: bool
     starts_on: date
     is_started: bool
+    is_due: bool
     step: ProgramStepRead
     last_advanced_date: date
+    due_date: date
 
     @classmethod
     def from_models(
@@ -191,7 +195,9 @@ class ProgramDueRead(BaseModel):
         program: WorkoutProgram,
         step: WorkoutProgramStep,
         last_advanced_date: date,
+        due_date: date,
         is_started: bool,
+        is_due: bool,
     ) -> "ProgramDueRead":
         return cls(
             program_id=program.id,
@@ -199,6 +205,8 @@ class ProgramDueRead(BaseModel):
             advance_on_any_workout=program.advance_on_any_workout,
             starts_on=program.starts_on,
             is_started=is_started,
+            is_due=is_due,
             step=ProgramStepRead.from_model(step),
             last_advanced_date=last_advanced_date,
+            due_date=due_date,
         )

@@ -166,6 +166,19 @@ function renderTodayPlan() {
       <button class="text-button" data-go-view="programs">Manage</button>`;
     return;
   }
+  if (!due.is_due) {
+    $("#today-plan").innerHTML = `
+      <div class="today-plan-copy">
+        <span class="plan-symbol rest">◷</span>
+        <div>
+          <p class="eyebrow">Next program day · ${escapeHtml(due.program_name)}</p>
+          <h2>${escapeHtml(dueStepLabel(step))}</h2>
+          <small>Scheduled for ${escapeHtml(localDate(due.due_date, { weekday: "long" }))}. Every program step gets its own calendar day.</small>
+        </div>
+      </div>
+      <button class="text-button" data-go-view="programs">Manage</button>`;
+    return;
+  }
   const rest = step.step_type === "rest";
   $("#today-plan").innerHTML = `
     <div class="today-plan-copy">
@@ -366,10 +379,10 @@ function renderAgenda() {
     const weekday = WEEKDAYS[(date.getDay() + 6) % 7];
     const isToday = dateValue === isoToday();
     const planDate = state.dueProgram
-      ? state.dueProgram.is_started ? isoToday() : state.dueProgram.starts_on
+      ? state.dueProgram.is_due ? isoToday() : state.dueProgram.due_date
       : null;
     const programBadge = dateValue === planDate && state.dueProgram
-      ? `<div class="calendar-plan-badge ${state.dueProgram.step.step_type === "rest" ? "rest" : ""}"><span>${state.dueProgram.is_started ? "Today's plan" : "Program starts"}</span><strong>${escapeHtml(dueStepLabel(state.dueProgram.step))}</strong></div>`
+      ? `<div class="calendar-plan-badge ${state.dueProgram.step.step_type === "rest" ? "rest" : ""}"><span>${!state.dueProgram.is_started ? "Program starts" : state.dueProgram.is_due ? "Today's plan" : "Next program day"}</span><strong>${escapeHtml(dueStepLabel(state.dueProgram.step))}</strong></div>`
       : "";
     const startStyle = day === 1 ? ` style="--calendar-start:${firstWeekday + 1}"` : "";
     return `<article class="calendar-day ${workouts.length ? "has-workouts" : ""} ${isToday ? "today" : ""}"${startStyle}>
@@ -397,6 +410,9 @@ function programCard(program) {
   const programStarted = !program.is_active
     || state.dueProgram?.program_id !== program.id
     || state.dueProgram.is_started;
+  const programDueNow = program.is_active
+    && state.dueProgram?.program_id === program.id
+    && state.dueProgram.is_due;
   const steps = program.steps.map((step) => `
     <li class="program-cycle-step ${step.id === currentStepId && program.is_active ? "due" : ""}">
       <span class="cycle-position">${String(step.position + 1).padStart(2, "0")}</span>
@@ -404,14 +420,14 @@ function programCard(program) {
       <div><strong>${escapeHtml(dueStepLabel(step))}</strong><small>${step.step_type === "rest" ? "Rest" : step.linked_workout_template_name ? `Saved · ${escapeHtml(step.linked_workout_template_name)}` : (step.muscle_groups || []).join(" · ") || "Any muscle"}</small></div>
       ${program.is_active && programStarted && step.id !== currentStepId
         ? `<button class="text-button" data-action="jump-program-step" data-id="${step.id}">Jump here</button>`
-        : step.id === currentStepId && program.is_active ? `<b>${programStarted ? "Due" : "First"}</b>` : ""}
+        : step.id === currentStepId && program.is_active ? `<b>${!programStarted ? "First" : programDueNow ? "Due" : "Next"}</b>` : ""}
     </li>`).join("");
   return `<article class="program-card ${program.is_active ? "active" : ""} ${archived ? "archived" : ""}">
     <div class="program-card-head">
       <div><p class="eyebrow">${archived ? "Archived program" : program.is_active ? "Active program" : "Saved program"}</p><h2>${escapeHtml(program.name)}</h2></div>
-      <span class="program-status">${program.is_active ? programStarted ? "In rotation" : "Scheduled" : archived ? "Archived" : `${program.steps.length} steps`}</span>
+      <span class="program-status">${program.is_active ? programDueNow ? "Due today" : "Scheduled" : archived ? "Archived" : `${program.steps.length} steps`}</span>
     </div>
-    <p class="program-rule"><strong>Starts ${escapeHtml(localDate(program.starts_on))}.</strong> ${program.advance_on_any_workout ? "Any logged session advances a workout step." : "A linked saved workout must match; otherwise every planned muscle group must be logged."}</p>
+    <p class="program-rule"><strong>Starts ${escapeHtml(localDate(program.starts_on))}. One step per calendar day.</strong> ${program.advance_on_any_workout ? "A session logged on the due day advances to tomorrow." : "A linked saved workout must match; otherwise every planned muscle group must be logged."}</p>
     <ol class="program-cycle">${steps}</ol>
     <div class="program-card-actions">
       ${archived ? "" : `<button class="button secondary compact" data-action="edit-program" data-id="${program.id}">Edit</button>`}
@@ -659,7 +675,7 @@ function pickerExerciseSummary(template) {
 function openWorkoutPicker(workoutDate = null) {
   const selectedDate = workoutDate || isoToday();
   const due = state.dueProgram;
-  const dueTemplate = selectedDate === isoToday() && due?.is_started
+  const dueTemplate = selectedDate === isoToday() && due?.is_started && due.is_due
     && due.step.step_type === "workout"
     ? findWorkoutTemplate(due.step.linked_workout_template_id)
     : null;
@@ -689,7 +705,7 @@ function defaultMuscleGroup() {
 function dueMuscleGroup(workoutDate = null) {
   const due = state.dueProgram;
   const isToday = !workoutDate || workoutDate === isoToday();
-  if (!isToday || !due?.is_started || due.step.step_type !== "workout") return null;
+  if (!isToday || !due?.is_started || !due.is_due || due.step.step_type !== "workout") return null;
   return (due.step.muscle_groups || []).find((group) =>
     state.machines.some((machine) => machine.active && machine.muscle_group === group)
   ) || null;
@@ -768,7 +784,8 @@ function openWorkoutDialog(
   form.dataset.templateId = sourceTemplate?.id || "";
   $("#workout-modal-title").textContent = repeat ? "Repeat workout" : workout ? "Edit workout" : "Log workout";
   const useDuePlan = !workout && !repeat && (!workoutDate || workoutDate === isoToday())
-    && state.dueProgram?.is_started && state.dueProgram.step.step_type === "workout";
+    && state.dueProgram?.is_started && state.dueProgram.is_due
+    && state.dueProgram.step.step_type === "workout";
   const plannedGroup = useDuePlan ? dueMuscleGroup(workoutDate) : null;
   const hint = $("#workout-plan-hint");
   const sourceForDisplay = sourceTemplate || historicalTemplate;

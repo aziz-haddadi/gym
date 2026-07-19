@@ -22,7 +22,9 @@ class DueProgramStep:
     program: WorkoutProgram
     step: WorkoutProgramStep
     last_advanced_date: date
+    due_date: date
     is_started: bool
+    is_due: bool
 
 
 class WorkoutProgramService:
@@ -141,6 +143,7 @@ class WorkoutProgramService:
             steps = self._ordered_steps(program)
             program.cycle_state.current_step = steps[0]  # type: ignore[union-attr]
             program.cycle_state.last_advanced_date = program.starts_on  # type: ignore[union-attr]
+            program.cycle_state.due_date = program.starts_on  # type: ignore[union-attr]
         self.db.commit()
         return self.repository.refresh_graph(program)
 
@@ -197,10 +200,12 @@ class WorkoutProgramService:
                 state.last_advanced_date = max(
                     local_today(user.timezone), program.starts_on
                 )
+                state.due_date = max(local_today(user.timezone), program.starts_on)
             elif old_current_type != current.step_type:
                 state.last_advanced_date = max(
                     local_today(user.timezone), program.starts_on
                 )
+                state.due_date = max(local_today(user.timezone), program.starts_on)
 
         program.steps = new_steps
         self.db.commit()
@@ -244,11 +249,13 @@ class WorkoutProgramService:
         if program.cycle_state:
             program.cycle_state.current_step = steps[0]
             program.cycle_state.last_advanced_date = program.starts_on
+            program.cycle_state.due_date = program.starts_on
         else:
             program.cycle_state = WorkoutProgramCycleState(
                 program_id=program.id,
                 current_step=steps[0],
                 last_advanced_date=program.starts_on,
+                due_date=program.starts_on,
             )
         self.db.commit()
         return self.repository.refresh_graph(program)
@@ -265,45 +272,58 @@ class WorkoutProgramService:
                 program_id=program.id,
                 current_step=steps[0],
                 last_advanced_date=program.starts_on,
+                due_date=program.starts_on,
             )
             current = steps[0]
         else:
             current = self._current_step(program, steps)
 
         state = program.cycle_state
+        # Repair legacy or manually adjusted states where last_advanced_date
+        # moved without the newer due_date field. A normal completed step has
+        # exactly one day between these values and is intentionally untouched.
+        if state.last_advanced_date + timedelta(days=1) < state.due_date:
+            state.due_date = state.last_advanced_date
         is_started = today >= program.starts_on
         if not is_started:
             return DueProgramStep(
                 program=program,
                 step=current,
                 last_advanced_date=state.last_advanced_date,
+                due_date=state.due_date,
                 is_started=False,
+                is_due=False,
             )
         if (
             current.step_type == ProgramStepType.REST.value
-            and state.last_advanced_date < today
+            and state.due_date < today
             and all(step.step_type == ProgramStepType.REST.value for step in steps)
         ):
-            elapsed_days = (today - state.last_advanced_date).days
+            elapsed_days = (today - state.due_date).days
             current_index = next(
                 index for index, step in enumerate(steps) if step.id == current.id
             )
             current = steps[(current_index + elapsed_days) % len(steps)]
             state.current_step = current
             state.last_advanced_date = today
+            state.due_date = today
         while (
             current.step_type == ProgramStepType.REST.value
-            and state.last_advanced_date < today
+            and state.due_date < today
         ):
+            completed_date = state.due_date
             current = self._next_step(steps, current)
             state.current_step = current
-            state.last_advanced_date += timedelta(days=1)
+            state.last_advanced_date = completed_date
+            state.due_date = completed_date + timedelta(days=1)
 
         return DueProgramStep(
             program=program,
             step=current,
             last_advanced_date=state.last_advanced_date,
+            due_date=state.due_date,
             is_started=True,
+            is_due=today >= state.due_date,
         )
 
     def get_due(self, user: User) -> DueProgramStep | None:
@@ -324,6 +344,7 @@ class WorkoutProgramService:
         if (
             not due
             or not due.is_started
+            or not due.is_due
             or due.step.step_type != ProgramStepType.WORKOUT.value
         ):
             return False
@@ -340,7 +361,9 @@ class WorkoutProgramService:
 
         steps = self._ordered_steps(due.program)
         due.program.cycle_state.current_step = self._next_step(steps, due.step)  # type: ignore[union-attr]
-        due.program.cycle_state.last_advanced_date = local_today(user.timezone)  # type: ignore[union-attr]
+        today = local_today(user.timezone)
+        due.program.cycle_state.last_advanced_date = today  # type: ignore[union-attr]
+        due.program.cycle_state.due_date = today + timedelta(days=1)  # type: ignore[union-attr]
         return True
 
     def manual_advance(
@@ -351,21 +374,28 @@ class WorkoutProgramService:
             raise InputError("No active workout program")
         steps = self._ordered_steps(due.program)
         if target_step_id is None:
+            if not due.is_due:
+                raise InputError(f"The next program step is scheduled for {due.due_date}")
             target = self._next_step(steps, due.step)
+            target_due_date = local_today(user.timezone) + timedelta(days=1)
         else:
             target = next((step for step in steps if step.id == target_step_id), None)
             if not target:
                 raise InputError("Target step does not belong to the active program")
+            target_due_date = max(
+                local_today(user.timezone), due.program.starts_on
+            )
 
         state = due.program.cycle_state
         state.current_step = target  # type: ignore[union-attr]
-        state.last_advanced_date = max(  # type: ignore[union-attr]
-            local_today(user.timezone), due.program.starts_on
-        )
+        state.last_advanced_date = local_today(user.timezone)  # type: ignore[union-attr]
+        state.due_date = target_due_date  # type: ignore[union-attr]
         self.db.commit()
         return DueProgramStep(
             program=due.program,
             step=target,
             last_advanced_date=state.last_advanced_date,  # type: ignore[union-attr]
+            due_date=state.due_date,  # type: ignore[union-attr]
             is_started=local_today(user.timezone) >= due.program.starts_on,
+            is_due=local_today(user.timezone) >= state.due_date,  # type: ignore[union-attr]
         )

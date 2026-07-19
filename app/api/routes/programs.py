@@ -25,7 +25,9 @@ def due_response(due: DueProgramStep | None) -> ProgramDueRead | None:
         due.program,
         due.step,
         due.last_advanced_date,
+        due.due_date,
         due.is_started,
+        due.is_due,
     )
 
 
