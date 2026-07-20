@@ -77,6 +77,7 @@ class WorkoutService:
             user,
             muscle_groups,
             template_id=template.id if template else None,
+            completed_on=data.workout_date,
         )
         self.db.commit()
         return self.repository.get_for_user(workout.id, user.id)  # type: ignore[return-value]

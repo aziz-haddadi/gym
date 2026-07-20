@@ -105,6 +105,21 @@ class WorkoutProgramService:
         index = next(index for index, step in enumerate(steps) if step.id == current.id)
         return steps[(index + 1) % len(steps)]
 
+    @classmethod
+    def _advance_to_next_calendar_day(
+        cls,
+        state: WorkoutProgramCycleState,
+        steps: list[WorkoutProgramStep],
+        current: WorkoutProgramStep,
+        completed_on: date,
+    ) -> WorkoutProgramStep:
+        """Advance exactly one step while reserving one date for every step."""
+        next_step = cls._next_step(steps, current)
+        state.current_step = next_step
+        state.last_advanced_date = completed_on
+        state.due_date = completed_on + timedelta(days=1)
+        return next_step
+
     @staticmethod
     def _assert_editable(program: WorkoutProgram) -> None:
         if program.archived_at is not None:
@@ -311,11 +326,11 @@ class WorkoutProgramService:
             current.step_type == ProgramStepType.REST.value
             and state.due_date < today
         ):
-            completed_date = state.due_date
-            current = self._next_step(steps, current)
-            state.current_step = current
-            state.last_advanced_date = completed_date
-            state.due_date = completed_date + timedelta(days=1)
+            # A rest step owns its full due date. Only after that date has
+            # ended may the following step become due on the next date.
+            current = self._advance_to_next_calendar_day(
+                state, steps, current, state.due_date
+            )
 
         return DueProgramStep(
             program=program,
@@ -338,14 +353,19 @@ class WorkoutProgramService:
         muscle_groups: set[str],
         *,
         template_id: uuid.UUID | None = None,
+        completed_on: date | None = None,
     ) -> bool:
         """Advance a due workout step without committing the surrounding transaction."""
         due = self._resolve_due(user)
+        today = local_today(user.timezone)
+        workout_date = completed_on or today
         if (
             not due
             or not due.is_started
             or not due.is_due
             or due.step.step_type != ProgramStepType.WORKOUT.value
+            or workout_date < due.due_date
+            or workout_date > today
         ):
             return False
 
@@ -360,10 +380,12 @@ class WorkoutProgramService:
             return False
 
         steps = self._ordered_steps(due.program)
-        due.program.cycle_state.current_step = self._next_step(steps, due.step)  # type: ignore[union-attr]
-        today = local_today(user.timezone)
-        due.program.cycle_state.last_advanced_date = today  # type: ignore[union-attr]
-        due.program.cycle_state.due_date = today + timedelta(days=1)  # type: ignore[union-attr]
+        self._advance_to_next_calendar_day(
+            due.program.cycle_state,  # type: ignore[arg-type]
+            steps,
+            due.step,
+            workout_date,
+        )
         return True
 
     def manual_advance(
